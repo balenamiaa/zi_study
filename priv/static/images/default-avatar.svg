@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <style>
+    :root {
+      --avatar-primary: oklch(71.996% 0.123 62.756);
+      --avatar-bg: oklch(24% 0.023 329.708);
+      --avatar-fg: oklch(30% 0.023 329.708);
+      --avatar-accent: oklch(16% 0.019 329.708);
+      --avatar-text: oklch(72.354% 0.092 79.129);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --avatar-primary: oklch(0% 0 0);
+        --avatar-bg: oklch(98% 0.016 73.684);
+        --avatar-fg: oklch(90% 0.076 70.697);
+        --avatar-accent: oklch(85% 0.076 70.697);
+        --avatar-text: oklch(40% 0.123 38.172);
+      }
+    }
+
+    .avatar-bg { fill: var(--avatar-bg); }
+    .avatar-fg { fill: var(--avatar-fg); }
+    .avatar-accent { fill: var(--avatar-accent); }
+    .avatar-primary { fill: var(--avatar-primary); }
+    .avatar-text { fill: var(--avatar-text); }
+  </style>
+  
+  <!-- Background Circle with Gradient -->
+  <defs>
+    <radialGradient id="avatarGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" class="avatar-bg" stop-opacity="1" />
+      <stop offset="100%" class="avatar-bg" stop-opacity="0.9" />
+    </radialGradient>
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main Circle -->
+  <circle cx="64" cy="64" r="64" fill="url(#avatarGradient)" />
+  
+  <!-- Subtle Pattern -->
+  <path class="avatar-accent" d="M64 128c35.3 0 64-28.7 64-64S99.3 0 64 0 0 28.7 0 64s28.7 64 64 64z" fill-opacity="0.05" />
+  
+  <!-- Head -->
+  <circle cx="64" cy="48" r="24" class="avatar-fg" />
+  
+  <!-- Body -->
+  <path class="avatar-fg" d="M110 128c0-25.4-20.6-46-46-46S18 102.6 18 128h92z" />
+  
+  <!-- Shine Effect -->
+  <circle cx="64" cy="64" r="62" fill="url(#shine)" stroke="var(--avatar-primary)" stroke-width="2" stroke-opacity="0.3" />
+  
+  <!-- Primary Color Ring -->
+  <circle cx="64" cy="64" r="60" fill="none" stroke="var(--avatar-primary)" stroke-width="1" stroke-opacity="0.1" stroke-dasharray="4,4" />
+  
+  <!-- Details -->
+  <path class="avatar-accent" d="M64 82c-15 0-29 8-36 20 7 13 20 22 36 22s29-9 36-22c-7-12-21-20-36-20z" fill-opacity="0.4" />
+</svg> 

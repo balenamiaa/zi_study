@@ -305,4 +305,35 @@ defmodule Zistudy.Accounts do
       {:ok, user, expired_tokens}
     end
   end
+
+  @doc """
+  Updates a user's profile picture.
+
+  ## Examples
+
+      iex> update_user_profile_picture(user, "filename.jpg")
+      {:ok, %User{}}
+
+  """
+  def update_user_profile_picture(user, filename) when is_binary(filename) do
+    user
+    |> User.email_changeset(%{profile_picture: filename})
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets the absolute path for storing profile pictures.
+  """
+  def profile_picture_path do
+    Application.app_dir(:zistudy, "priv/static/uploads/profile_pictures")
+  end
+
+  @doc """
+  Gets the URL for a user's profile picture.
+  Returns default image URL if the user has no profile picture.
+  """
+  def get_profile_picture_url(%User{profile_picture: nil}), do: "/images/default-avatar.svg"
+  def get_profile_picture_url(%User{profile_picture: filename}) do
+    "/uploads/profile_pictures/#{filename}"
+  end
 end

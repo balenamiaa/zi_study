@@ -33,66 +33,107 @@ defmodule ZistudyWeb.CoreComponents do
 
   @doc """
   Renders a responsive topbar with logo, navigation and actions.
-
-  ## Examples
-
-      <.topbar>
-        <:logo_src>
-          <img src={~p"/images/logo.svg"} alt="Logo" />
-        </:logo_src>
-        <:logo_text>
-          <span class="text-lg font-bold">MyApp</span>
-        </:logo_text>
-        <:nav_links>
-          <li><a href="/" class="font-medium">Home</a></li>
-          <li><a href="/about" class="font-medium">About</a></li>
-        </:nav_links>
-        <:mobile_links>
-          <li><a href="/" class="font-medium">Home</a></li>
-          <li><a href="/about" class="font-medium">About</a></li>
-        </:mobile_links>
-        <:actions>
-          <.button navigate="/login">Login</.button>
-        </:actions>
-      </.topbar>
   """
   attr :id, :string, default: "topbar"
   attr :class, :string, default: nil
   attr :show_on_scroll, :boolean, default: true
+  attr :current_scope, :map, default: %{}
+  attr :logout_path, :string, default: "/users/log-out"
+  attr :login_path, :string, default: "/users/log-in"
+  attr :register_path, :string, default: "/users/register"
 
   slot :logo_src, required: true
   slot :logo_text
   slot :nav_links
   slot :mobile_links
   slot :actions
+  slot :profile_links
 
   def topbar(assigns) do
+    assigns =
+      assigns
+      |> assign(
+        :current_user,
+        if(assigns.current_scope, do: assigns.current_scope.user, else: nil)
+      )
+
     ~H"""
-    <header id={@id} class={[
-      "fixed top-0 left-0 right-0 z-50 bg-base-100/80 backdrop-blur transition-all duration-300 shadow-sm",
-      @class
-    ]}>
-      <div class="navbar container mx-auto px-4 sm:px-6 lg:px-8 py-2">
-        <div class="navbar-start">
-          <.mobile_menu :if={@mobile_links != []}>
-            <%= render_slot(@mobile_links) %>
+    <header
+      id={@id}
+      class={[
+        "fixed top-0 left-0 right-0 z-50 bg-base-100/85 backdrop-blur-md transition-all duration-300 shadow-sm",
+        @class
+      ]}
+    >
+      <div class="navbar mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div class="navbar-start gap-3">
+          <.mobile_menu :if={@mobile_links != []} class="mr-1">
+            {render_slot(@mobile_links)}
           </.mobile_menu>
           <.app_logo>
             <:logo>
-              <%= render_slot(@logo_src) %>
+              {render_slot(@logo_src)}
             </:logo>
             <:text :if={@logo_text != []}>
-              <%= render_slot(@logo_text) %>
+              {render_slot(@logo_text)}
             </:text>
           </.app_logo>
         </div>
         <div :if={@nav_links != []} class="navbar-center hidden lg:flex">
-          <ul class="menu menu-horizontal px-1 gap-1">
-            <%= render_slot(@nav_links) %>
+          <ul class="menu menu-horizontal px-1 gap-3">
+            {render_slot(@nav_links)}
           </ul>
         </div>
-        <div class="navbar-end gap-2">
-          <%= render_slot(@actions) %>
+        <div class="navbar-end gap-4">
+          {render_slot(@actions)}
+          <div :if={@current_user} class="dropdown dropdown-end">
+            <label
+              tabindex="0"
+              class="btn btn-ghost btn-circle avatar group transition-all duration-300 hover:scale-105"
+            >
+              <div class="w-10 rounded-full ring-2 ring-primary ring-offset-base-100 ring-offset-2 shadow-md group-hover:ring-offset-4 group-hover:shadow-lg transition-all duration-300 overflow-hidden">
+                <img src={Zistudy.Accounts.get_profile_picture_url(@current_user)} alt="Profile" />
+              </div>
+            </label>
+            <div
+              tabindex="0"
+              class="dropdown-content z-[1] menu shadow-lg bg-base-200 rounded-box w-64 mt-3 overflow-hidden border-2 border-base-300"
+            >
+              <div class="p-4 text-center bg-base-300/50">
+                <div class="avatar mb-3">
+                  <div class="w-16 h-16 rounded-full ring-2 ring-primary ring-offset-base-100 ring-offset-2 mx-auto shadow-md">
+                    <img src={Zistudy.Accounts.get_profile_picture_url(@current_user)} alt="Profile" />
+                  </div>
+                </div>
+                <div class="font-bold text-lg">{@current_user.email}</div>
+                <div class="text-xs opacity-70 mt-1">Member</div>
+                <div class="mt-3 divider m-0"></div>
+              </div>
+              <div class="py-2 px-1">
+                {render_slot(@profile_links)}
+                <div class="divider my-1"></div>
+                <li class="p-0">
+                  <.link
+                    href={@logout_path}
+                    method="delete"
+                    class="w-full text-left flex items-center gap-3 py-3 px-4 text-error hover:bg-base-300 transition-colors rounded-lg"
+                    data-csrf={Plug.CSRFProtection.get_csrf_token()}
+                  >
+                    <.icon name="hero-arrow-right-on-rectangle-solid" class="size-5" />
+                    <span>Logout</span>
+                  </.link>
+                </li>
+              </div>
+            </div>
+          </div>
+          <div :if={!@current_user} class="flex items-center gap-3">
+            <.link href={@login_path} class="btn btn-ghost btn-sm">
+              Log in
+            </.link>
+            <.link href={@register_path} class="btn btn-primary btn-sm">
+              Register
+            </.link>
+          </div>
         </div>
       </div>
     </header>
@@ -144,11 +185,14 @@ defmodule ZistudyWeb.CoreComponents do
   def mobile_menu(assigns) do
     ~H"""
     <div class={["dropdown lg:hidden", @class]}>
-      <label tabindex="0" class="btn btn-ghost btn-circle">
-        <.icon name="hero-bars-3-mini" class="size-5" />
+      <label tabindex="0" class="btn btn-ghost btn-circle hover:bg-base-200 transition-colors">
+        <.icon name="hero-bars-3-mini" class="size-5 text-base-content" />
       </label>
-      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-200 rounded-box w-52">
-        <%= render_slot(@inner_block) %>
+      <ul
+        tabindex="0"
+        class="menu menu-sm dropdown-content mt-3 z-[1] p-3 shadow-lg bg-base-200/95 backdrop-blur-sm rounded-box w-56 border-2 border-base-300 gap-1"
+      >
+        {render_slot(@inner_block)}
       </ul>
     </div>
     """
@@ -176,14 +220,17 @@ defmodule ZistudyWeb.CoreComponents do
 
   def app_logo(assigns) do
     ~H"""
-    <a href={@href} class={["flex items-center gap-2", @class]}>
+    <a
+      href={@href}
+      class={["flex items-center gap-3 transition-transform duration-300 hover:scale-105", @class]}
+    >
       <div class="avatar">
-        <div class="w-10 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 bg-base-300 flex items-center justify-center">
-          <%= render_slot(@logo) %>
+        <div class="w-10 rounded-full ring-2 ring-primary ring-offset-base-100 ring-offset-2 bg-base-300 flex items-center justify-center shadow-md overflow-hidden">
+          {render_slot(@logo)}
         </div>
       </div>
       <div :if={@text != []} class="hidden md:flex flex-col">
-        <%= render_slot(@text) %>
+        {render_slot(@text)}
       </div>
     </a>
     """

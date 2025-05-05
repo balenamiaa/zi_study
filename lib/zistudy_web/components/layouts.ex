@@ -13,7 +13,12 @@ defmodule ZistudyWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <.topbar>
+    <.topbar
+      current_scope={@current_scope}
+      login_path={~p"/users/log-in"}
+      register_path={~p"/users/register"}
+      logout_path={~p"/users/log-out"}
+    >
       <:logo_src>
         <img src={~p"/images/logo.svg"} alt="ZiStudy Logo" class="w-6 h-6" />
       </:logo_src>
@@ -30,18 +35,29 @@ defmodule ZistudyWeb.Layouts do
         <li><a href="/" class="font-medium">Home</a></li>
         <li><a href="/about" class="font-medium">About</a></li>
         <li><a href="/features" class="font-medium">Features</a></li>
-        <li><a href="https://phoenixframework.org/" class="font-medium">Phoenix</a></li>
-        <li><a href="https://github.com/phoenixframework/phoenix" class="font-medium">GitHub</a></li>
       </:mobile_links>
+      <:profile_links>
+        <li>
+          <a href={~p"/users/settings"} class="flex gap-3 py-3">
+            <.icon name="hero-cog-8-tooth-solid" class="size-5 text-base-content/70" />
+            <span>Settings</span>
+          </a>
+        </li>
+        <li>
+          <a href={~p"/profile"} class="flex gap-3 py-3">
+            <.icon name="hero-user-solid" class="size-5 text-base-content/70" />
+            <span>Profile</span>
+          </a>
+        </li>
+        <li>
+          <a href={~p"/dashboard"} class="flex gap-3 py-3">
+            <.icon name="hero-chart-bar-solid" class="size-5 text-base-content/70" />
+            <span>Dashboard</span>
+          </a>
+        </li>
+      </:profile_links>
       <:actions>
-        <div class="hidden md:flex items-center gap-2 mr-2">
-          <a href="https://phoenixframework.org/" class="btn btn-ghost btn-sm">Website</a>
-          <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost btn-sm">GitHub</a>
-        </div>
         <.theme_toggle />
-        <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary btn-sm">
-          Get Started <span aria-hidden="true" class="ml-1">&rarr;</span>
-        </a>
       </:actions>
     </.topbar>
 
@@ -105,19 +121,28 @@ defmodule ZistudyWeb.Layouts do
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-[33%] h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-[33%] [[data-theme=dark]_&]:left-[66%] transition-[left]" />
+    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-200 rounded-full shadow-md overflow-hidden">
+      <div class="absolute w-[33%] h-full rounded-full bg-base-100 brightness-150 left-0 [[data-theme=light]_&]:left-[33%] [[data-theme=dark]_&]:left-[66%] transition-all duration-300" />
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "system"})} class="flex p-2">
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
+      <button
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "system"})}
+        class="flex p-2 z-10 hover:text-primary transition-colors duration-200"
+      >
+        <.icon name="hero-computer-desktop-mini" class="size-4 opacity-80 hover:opacity-100" />
       </button>
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "light"})} class="flex p-2">
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
+      <button
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "light"})}
+        class="flex p-2 z-10 hover:text-primary transition-colors duration-200"
+      >
+        <.icon name="hero-sun-mini" class="size-4 opacity-80 hover:opacity-100" />
       </button>
 
-      <button phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "dark"})} class="flex p-2">
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+      <button
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "dark"})}
+        class="flex p-2 z-10 hover:text-primary transition-colors duration-200"
+      >
+        <.icon name="hero-moon-mini" class="size-4 opacity-80 hover:opacity-100" />
       </button>
     </div>
     """

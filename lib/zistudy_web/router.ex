@@ -20,7 +20,20 @@ defmodule ZistudyWeb.Router do
   scope "/", ZistudyWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    delete "/users/log-out", UserSessionController, :delete
+    post "/users/log-in", UserSessionController, :create
+  end
+
+  scope "/", ZistudyWeb do
+    pipe_through [:browser]
+
+    live_session :current_user,
+      on_mount: [{ZistudyWeb.UserAuth, :mount_current_scope}] do
+      live "/", HomeLive, :index
+      live "/users/register", UserLive.Registration, :new
+      live "/users/log-in", UserLive.Login, :new
+      live "/users/log-in/:token", UserLive.Confirmation, :new
+    end
   end
 
   # Other scopes may use custom stacks.
@@ -57,19 +70,5 @@ defmodule ZistudyWeb.Router do
     end
 
     post "/users/update-password", UserSessionController, :update_password
-  end
-
-  scope "/", ZistudyWeb do
-    pipe_through [:browser]
-
-    live_session :current_user,
-      on_mount: [{ZistudyWeb.UserAuth, :mount_current_scope}] do
-      live "/users/register", UserLive.Registration, :new
-      live "/users/log-in", UserLive.Login, :new
-      live "/users/log-in/:token", UserLive.Confirmation, :new
-    end
-
-    post "/users/log-in", UserSessionController, :create
-    delete "/users/log-out", UserSessionController, :delete
   end
 end
