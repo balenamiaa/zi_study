@@ -1,18 +1,19 @@
-# Zistudy
+This is phoenix live view template that uses daisyui + svelte integrated with live_svelte.
+It will be my goto template for any new web project.
 
-To start your Phoenix server:
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+- Replace JustATemplate with the name of your project in PascalCase.
+- Replace just_a_template with the name of your project in snake_case.
+- Rename directories that have just_a_template in their name to your project name in snake_case.
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+The DB used by default is sqlite3, but that can be changed by:
+- changing the ecto_sqlite3 dependency to the one you want in mix.exs
+- changing the ecto adapter in repo.ex
 
-## Learn more
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+# Required dependencies
+
+- Elixir
+- Erlang
+- Node.js

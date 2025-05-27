@@ -1,4 +1,4 @@
-defmodule Zistudy.Repo.Migrations.AddProfilePictureToUsers do
+defmodule JustATemplate.Repo.Migrations.AddProfilePictureToUsers do
   use Ecto.Migration
 
   def change do

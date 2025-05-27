@@ -1,9 +1,9 @@
-defmodule Zistudy.MixProject do
+defmodule JustATemplate.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :zistudy,
+      app: :just_a_template,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -19,7 +19,7 @@ defmodule Zistudy.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {Zistudy.Application, []},
+      mod: {JustATemplate.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -43,7 +43,6 @@ defmodule Zistudy.MixProject do
       {:phoenix_live_view, "~> 1.0"},
       {:floki, ">= 0.30.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.9", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons,
        github: "tailwindlabs/heroicons",
@@ -53,6 +52,7 @@ defmodule Zistudy.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.5"},
+      {:live_svelte, "~> 0.16.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
@@ -70,15 +70,13 @@ defmodule Zistudy.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      setup: ["deps.get", "ecto.setup", "cmd --cd assets npm install"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["tailwind zistudy", "esbuild zistudy"],
       "assets.deploy": [
-        "tailwind zistudy --minify",
-        "esbuild zistudy --minify",
+        "tailwind just_a_template --minify",
+        "cmd --cd assets node build.js --deploy",
         "phx.digest"
       ]
     ]

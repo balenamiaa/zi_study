@@ -7,50 +7,40 @@
 # General application configuration
 import Config
 
-config :zistudy, :scopes,
+config :just_a_template, :scopes,
   user: [
     default: true,
-    module: Zistudy.Accounts.Scope,
+    module: JustATemplate.Accounts.Scope,
     assign_key: :current_scope,
     access_path: [:user, :id],
     schema_key: :user_id,
     schema_type: :id,
     schema_table: :users,
-    test_data_fixture: Zistudy.AccountsFixtures,
+    test_data_fixture: JustATemplate.AccountsFixtures,
     test_login_helper: :register_and_log_in_user
   ]
 
-config :zistudy,
-  ecto_repos: [Zistudy.Repo],
+config :just_a_template,
+  ecto_repos: [JustATemplate.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
-config :zistudy, ZistudyWeb.Endpoint,
+config :just_a_template, JustATemplateWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: ZistudyWeb.ErrorHTML, json: ZistudyWeb.ErrorJSON],
+    formats: [html: JustATemplateWeb.ErrorHTML, json: JustATemplateWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: Zistudy.PubSub,
+  pubsub_server: JustATemplate.PubSub,
   live_view: [signing_salt: "TjW5907C"]
 
-config :zistudy, Zistudy.Mailer, adapter: Swoosh.Adapters.Local
-
-# Configure esbuild (the version is required)
-config :esbuild,
-  version: "0.17.11",
-  zistudy: [
-    args:
-      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/*),
-    cd: Path.expand("../assets", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
-  ]
+config :just_a_template, JustATemplate.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "4.0.9",
-  zistudy: [
+  just_a_template: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css

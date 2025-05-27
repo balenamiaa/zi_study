@@ -23,7 +23,7 @@ erl_crash.dump
 /tmp/
 
 # Ignore package tarball (built via "mix hex.build").
-zistudy-*.tar
+just_a_template-*.tar
 
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
@@ -34,10 +34,17 @@ zistudy-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
+package-lock.json
 
 # Database files
 *.db
 *.db-*
 
 
+.elixir_ls
 
+# Ignore automatically generated Svelte files by the ~V sigil
+/assets/svelte/_build/
+
+# Ignore ssr build for svelte.
+/priv/svelte/
