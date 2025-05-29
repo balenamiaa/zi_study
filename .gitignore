@@ -48,3 +48,6 @@ package-lock.json
 
 # Ignore ssr build for svelte.
 /priv/svelte/
+
+# Ignore uploaded files
+/priv/uploads/

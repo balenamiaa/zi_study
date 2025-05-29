@@ -35,18 +35,12 @@ defmodule JustATemplateWeb.UserLive.Registration do
               name="AvatarUpload"
               props={
                 %{
-                  currentUrl: @current_avatar_url,
+                  image_preview_url: @image_preview_url,
                   size: "lg"
                 }
               }
               socket={@socket}
-            >
-              <.live_file_input
-                upload={@uploads.profile_picture}
-                class="hidden"
-                id="avatar-file-input"
-              />
-            </.svelte>
+            />
           </div>
 
           <.button variant="primary" phx-disable-with="Creating account..." class="w-full">
@@ -69,21 +63,15 @@ defmodule JustATemplateWeb.UserLive.Registration do
     socket =
       socket
       |> assign_form(changeset)
-      |> assign(:current_avatar_url, nil)
-      |> assign(:uploaded_files, [])
-      |> allow_upload(:profile_picture,
-        accept: ~w(.jpg .jpeg .png .webp),
-        max_entries: 1,
-        # 5MB
-        max_file_size: 5_242_880,
-        auto_upload: true
-      )
+      |> assign(:image_preview_url, nil)
+      |> assign(:uploaded_image_file_name, nil)
 
     {:ok, socket, temporary_assigns: [form: nil]}
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
-    profile_picture_filename = handle_profile_picture_uploads(socket)
+    %{assigns: %{uploaded_image_file_name: profile_picture_filename}} = socket
+
     user_params = Map.put(user_params, "profile_picture", profile_picture_filename)
 
     case Accounts.register_user(user_params) do
@@ -110,32 +98,6 @@ defmodule JustATemplateWeb.UserLive.Registration do
   def handle_event("validate", %{"user" => user_params}, socket) do
     changeset = Accounts.change_user_email(%User{}, user_params)
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
-  end
-
-  defp handle_profile_picture_uploads(socket) do
-    case consume_uploaded_entries(socket, :profile_picture, fn %{path: path}, entry ->
-           ext = Path.extname(entry.client_name)
-           filename = "#{Ecto.UUID.generate()}#{ext}"
-           dest = Path.join(Accounts.profile_picture_path(), filename)
-           File.cp!(path, dest)
-           {:ok, filename}
-         end) do
-      [] ->
-        case socket.assigns[:current_avatar_url] do
-          nil -> nil
-          url -> extract_filename_from_url(url)
-        end
-
-      [filename] ->
-        filename
-    end
-  end
-
-  defp extract_filename_from_url(url) do
-    case String.split(url, "/") do
-      [_ | _] = parts -> List.last(parts)
-      _ -> nil
-    end
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do

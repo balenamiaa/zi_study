@@ -5,39 +5,40 @@
     import Alert from "./Alert.svelte";
     import TextInput from "./TextInput.svelte";
 
+    const CHUNK_SIZE = 100 * 1024; // 100KB
+
     let {
         live,
         isOpen = false,
         onClose,
-        initialImageUrl = null,
+        imagePreviewUrl = null,
         children,
     } = $props();
 
     let activeMethod = $state("file-system");
     let imageUrl = $state("");
-    let imagePreview = $state(initialImageUrl);
+    let imagePreview = $state(imagePreviewUrl);
     let dragActive = $state(false);
     let isFocused = $state(false);
-    let uploadLoading = $state(false); // Mostly for url or clipboard upload methods
-    let uploadError = $state(null); // Mostly for url or clipboard upload methods
+    let uploadLoading = $state(false);
+    let uploadError = $state(null);
+    let fileInput = $state(null);
 
     $effect(() => {
         if (isOpen) {
-            imagePreview = initialImageUrl;
+            imagePreview = imagePreviewUrl;
             imageUrl = "";
             uploadError = null;
             uploadLoading = false;
         }
     });
 
-    function handleUrlChange(url) {
-        imageUrl = url;
-        if (!url || url.trim() === "") {
-            imagePreview = null;
-        } else {
-            imagePreview = url;
-        }
-    }
+    onMount(() => {
+        live.handleEvent("upload_success", ({ preview_url }) => {
+            // imagePreview = preview_url;
+            // Not really needed because imagePreviewUrl will bet set from the backend which will update here.
+        });
+    });
 
     async function handleUrlSubmit() {
         if (!imageUrl || imageUrl.trim() === "") return;
@@ -45,96 +46,95 @@
         uploadLoading = true;
         uploadError = null;
 
+        live.pushEvent("upload_from_url", { url: imageUrl });
+    }
+
+    async function handleFileUpload(file) {
         try {
-            const response = await fetch(imageUrl);
+            uploadLoading = true;
 
-            if (!response.ok) {
-                let errorBodyMessage = "";
-                try {
-                    const errorBody = await response.text();
-                    if (errorBody) {
-                        errorBodyMessage = ` - Server responded with: ${errorBody.substring(0, 100)}${errorBody.length > 100 ? "..." : ""}`;
-                    }
-                } catch (e) {}
-                throw new Error(
-                    `Failed to fetch image: ${response.status} ${response.statusText}${errorBodyMessage}`,
-                );
-            }
+            live.pushEvent("upload_file_chunked", {
+                state: "start",
+                file_name: file.name,
+                file_size: file.size,
+                file_type: file.type,
+            });
 
-            const blob = await response.blob();
-            const contentType =
-                response.headers.get("Content-Type") ||
-                blob.type ||
-                "application/octet-stream";
+            let offset = 0;
+            let chunkIndex = 0;
 
-            let filename;
-            try {
-                const urlObj = new URL(imageUrl);
-                const pathname = urlObj.pathname;
-                const lastSegment = decodeURIComponent(
-                    pathname.substring(pathname.lastIndexOf("/") + 1),
+            while (offset < file.size) {
+                const chunkBlob = file.slice(
+                    offset,
+                    Math.min(offset + CHUNK_SIZE, file.size),
                 );
 
-                if (
-                    lastSegment &&
-                    lastSegment.includes(".") &&
-                    lastSegment.trim() !== "."
-                ) {
-                    filename = lastSegment;
-                }
-            } catch (e) {
-                console.warn(
-                    "Could not parse filename from URL, will use a generic one:",
-                    imageUrl,
-                    e,
-                );
+                const chunkArrayBuffer = await chunkBlob.arrayBuffer();
+
+                live.pushEvent("upload_file_chunked", {
+                    state: "chunk",
+                    file_name: file.name,
+                    chunk_index: chunkIndex,
+                    chunk_data: chunkArrayBuffer,
+                    chunk_size: chunkArrayBuffer.byteLength,
+                });
+
+                offset += chunkArrayBuffer.byteLength;
+                chunkIndex++;
             }
 
-            if (!filename) {
-                const typeParts = contentType.split("/");
-                let extension =
-                    typeParts.length > 1
-                        ? typeParts[1]
-                              .toLowerCase()
-                              .split(";")[0]
-                              .replace("+xml", "xml")
-                        : "dat";
-                filename = `image_from_url.${extension}`;
-            }
-
-            const file = new File([blob], filename, { type: contentType });
-            const url = URL.createObjectURL(file);
-            imagePreview = url;
-
-            const dt = new DataTransfer();
-            dt.items.add(file);
-
-            live.upload("profile_picture", dt.items);
+            live.pushEvent("upload_file_chunked", {
+                state: "end",
+                file_name: file.name,
+            });
         } catch (error) {
-            console.error("Error processing image from URL:", error);
             uploadError =
-                error.message ||
-                "An unexpected error occurred while processing the image URL.";
+                "Error uploading pasted image: " +
+                (error.message || "Unknown error");
+            live.pushEvent("upload_file_chunked", {
+                state: "error",
+                file_name: file ? file.name : "unknown_file",
+                error_message: error.message || "Unknown error during chunking",
+            });
+        } finally {
             uploadLoading = false;
         }
     }
 
-    function handlePaste(event) {
+    async function handlePaste(event) {
+        uploadError = "";
+
         const items = event.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (item && item.type.startsWith("image")) {
-                const file = item.getAsFile();
-                const url = URL.createObjectURL(file);
-                imagePreview = url;
-                uploadLoading = true;
 
-                const dt = new DataTransfer();
-                dt.items.add(file);
-
-                live.upload("profile_picture", dt.items);
-            }
+        if (!items || items.length === 0) {
+            uploadError = "No items found in clipboard.";
+            uploadLoading = false;
+            return;
         }
+
+        if (items.length > 1) {
+            uploadError = "Multiple items pasted. Please paste only one image.";
+            uploadLoading = false;
+            return;
+        }
+
+        const firstItem = items[0];
+        if (!firstItem || !firstItem.type.startsWith("image")) {
+            uploadError =
+                "Pasted item is not an image. Found type: " +
+                (firstItem ? firstItem.type : "unknown");
+            uploadLoading = false;
+            return;
+        }
+
+        const file = firstItem.getAsFile();
+        if (!file) {
+            uploadError = "Could not retrieve file from pasted item.";
+            uploadLoading = false;
+            return;
+        }
+
+        handleFileUpload(file);
     }
 
     function handleDrag(event, active) {
@@ -148,20 +148,51 @@
         event.stopPropagation();
         dragActive = false;
 
-        const file = event.dataTransfer.files[0];
-        if (file) {
-            const url = URL.createObjectURL(file);
-            imagePreview = url;
-            uploadLoading = true;
-
-            const dt = new DataTransfer();
-            dt.items.add(file);
-
-            live.upload("profile_picture", dt.items);
+        const files = event.dataTransfer.files;
+        if (files.length > 1) {
+            uploadError = "Multiple files dropped. Please drop only one image.";
+            uploadLoading = false;
+            return;
         }
+
+        const file = files[0];
+        if (!file || !file.type.startsWith("image")) {
+            uploadError = "Dropped item is not an image.";
+            uploadLoading = false;
+            return;
+        }
+
+        handleFileUpload(file);
     }
 
-    onMount(() => {});
+    function handleFileInputChange(event) {
+        const inputElement = event.target;
+        const files = inputElement.files;
+
+        if (files.length > 1) {
+            uploadError =
+                "Multiple files selected. Please select only one image.";
+            uploadLoading = false;
+            return;
+        }
+
+        const file = files[0];
+        if (!file || !file.type.startsWith("image")) {
+            uploadError = "Selected item is not an image.";
+            uploadLoading = false;
+            return;
+        }
+
+        handleFileUpload(file);
+
+        inputElement.value = null;
+    }
+
+    function triggerFileInputClick() {
+        if (fileInput) {
+            fileInput.click();
+        }
+    }
 </script>
 
 <Modal
@@ -301,6 +332,14 @@
     </div>
 
     <div>
+        <input
+            type="file"
+            accept="image/*"
+            bind:this={fileInput}
+            onchange={handleFileInputChange}
+            class="hidden"
+        />
+
         {#if activeMethod === "file-system"}
             <div class="mt-4">
                 <div
@@ -314,6 +353,13 @@
                         ? 'opacity-50 cursor-not-allowed'
                         : ''}
                            hover:border-primary/60 hover:shadow-md hover:bg-primary/5 hover:scale-[1.01] active:scale-100"
+                    onclick={triggerFileInputClick}
+                    onkeydown={(e) => {
+                        if (e.key === "Enter" || e.key === " ")
+                            triggerFileInputClick();
+                    }}
+                    role="button"
+                    tabindex="0"
                     ondragenter.prevent={(e) => handleDrag(e, true)}
                     ondragover.prevent={(e) => handleDrag(e, true)}
                     ondragleave.prevent={(e) => handleDrag(e, false)}
@@ -323,9 +369,11 @@
                     aria-disabled={uploadLoading}
                     aria-label="Upload image from file system"
                 >
-                    {#if children}
-                        {@render children()}
-                    {/if}
+                    <div style="display: none;">
+                        {#if children}
+                            {@render children()}
+                        {/if}
+                    </div>
                     <svg
                         class="w-8 h-8 mx-auto mb-2 text-base-content/50"
                         fill="none"
@@ -341,7 +389,9 @@
                     </svg>
                     <p class="mb-1">Drag and drop your image here</p>
                     <p class="text-sm text-base-content/70">
-                        or click to browse files
+                        or <span class="font-semibold text-primary"
+                            >click to browse files</span
+                        >
                     </p>
                 </div>
             </div>
@@ -352,7 +402,6 @@
                     label="Image URL"
                     placeholder="https://example.com/image.jpg"
                     value={imageUrl}
-                    onInput={(e) => handleUrlChange(e.target.value)}
                     helperText="Enter the URL of an image"
                     disabled={uploadLoading}
                     class="mb-4"

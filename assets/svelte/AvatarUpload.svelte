@@ -4,7 +4,7 @@
 
     let {
         live,
-        currentUrl = null,
+        image_preview_url = null,
         size = "md",
         disabled = false,
         children,
@@ -53,9 +53,9 @@
         role="button"
         tabindex="0"
     >
-        {#if currentUrl}
+        {#if image_preview_url}
             <img
-                src={currentUrl}
+                src={image_preview_url}
                 alt="Profile avatar"
                 class="w-full h-full object-cover transition-transform duration-300 {hover
                     ? 'scale-105'
@@ -128,7 +128,7 @@
     {live}
     isOpen={modalOpen}
     onClose={closeModal}
-    initialImageUrl={currentUrl}
+    imagePreviewUrl={image_preview_url}
 >
     {#if children}
         {@render children()}
