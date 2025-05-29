@@ -153,4 +153,7 @@
   display: contents
 }
 
-/* This file is for your main application CSS */
+
+html {
+  scrollbar-gutter: stable;
+}

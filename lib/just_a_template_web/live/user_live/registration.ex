@@ -29,51 +29,24 @@ defmodule JustATemplateWeb.UserLive.Registration do
             phx-mounted={JS.focus()}
           />
 
-          <.svelte name="AvatarUpload" props={%{}} socket={@socket} />
-
           <div class="mb-4">
-            <label class="fieldset-label">Profile Picture</label>
-            <div class="flex flex-col gap-2">
-              <div class="flex items-center gap-4">
-                <div class="avatar">
-                  <div class="w-16 h-16 rounded-full bg-base-300 overflow-hidden">
-                    <%= if @uploaded_files != [] do %>
-                      <img src={@uploaded_files |> List.first() |> preview_url()} alt="Preview" />
-                    <% else %>
-                      <div class="flex items-center justify-center w-full h-full">
-                        <.icon name="hero-user-mini" class="size-8 opacity-70" />
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-                <div>
-                  <.live_file_input
-                    upload={@uploads.profile_picture}
-                    class="hidden"
-                    id="profile-picture-input"
-                  />
-                  <label for="profile-picture-input" class="btn btn-sm btn-outline">
-                    Choose Image
-                  </label>
-                </div>
-              </div>
-              <%= for entry <- @uploads.profile_picture.entries do %>
-                <div class="text-sm text-base-content/70">
-                  {entry.client_name} - {entry.progress}%
-                  <button
-                    type="button"
-                    phx-click="cancel-upload"
-                    phx-value-ref={entry.ref}
-                    class="text-error hover:underline ml-2"
-                  >
-                    cancel
-                  </button>
-                </div>
-                <%= for err <- upload_errors(@uploads.profile_picture, entry) do %>
-                  <div class="text-sm text-error">{error_to_string(err)}</div>
-                <% end %>
-              <% end %>
-            </div>
+            <label class="fieldset-label mb-2">Profile Picture</label>
+            <.svelte
+              name="AvatarUpload"
+              props={
+                %{
+                  currentUrl: @current_avatar_url,
+                  size: "lg"
+                }
+              }
+              socket={@socket}
+            >
+              <.live_file_input
+                upload={@uploads.profile_picture}
+                class="hidden"
+                id="avatar-file-input"
+              />
+            </.svelte>
           </div>
 
           <.button variant="primary" phx-disable-with="Creating account..." class="w-full">
@@ -96,9 +69,10 @@ defmodule JustATemplateWeb.UserLive.Registration do
     socket =
       socket
       |> assign_form(changeset)
+      |> assign(:current_avatar_url, nil)
       |> assign(:uploaded_files, [])
       |> allow_upload(:profile_picture,
-        accept: ~w(.jpg .jpeg .png),
+        accept: ~w(.jpg .jpeg .png .webp),
         max_entries: 1,
         # 5MB
         max_file_size: 5_242_880,
@@ -138,15 +112,6 @@ defmodule JustATemplateWeb.UserLive.Registration do
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
 
-  def handle_event("cancel-upload", %{"ref" => ref}, socket) do
-    {:noreply, cancel_upload(socket, :profile_picture, ref)}
-  end
-
-  defp assign_form(socket, %Ecto.Changeset{} = changeset) do
-    form = to_form(changeset, as: "user")
-    assign(socket, form: form)
-  end
-
   defp handle_profile_picture_uploads(socket) do
     case consume_uploaded_entries(socket, :profile_picture, fn %{path: path}, entry ->
            ext = Path.extname(entry.client_name)
@@ -155,16 +120,26 @@ defmodule JustATemplateWeb.UserLive.Registration do
            File.cp!(path, dest)
            {:ok, filename}
          end) do
-      [] -> nil
-      [filename] -> filename
+      [] ->
+        case socket.assigns[:current_avatar_url] do
+          nil -> nil
+          url -> extract_filename_from_url(url)
+        end
+
+      [filename] ->
+        filename
     end
   end
 
-  defp preview_url(filename) do
-    "/uploads/profile_pictures/#{filename}"
+  defp extract_filename_from_url(url) do
+    case String.split(url, "/") do
+      [_ | _] = parts -> List.last(parts)
+      _ -> nil
+    end
   end
 
-  defp error_to_string(:too_large), do: "File is too large (maximum 5MB)"
-  defp error_to_string(:not_accepted), do: "Unacceptable file type (allowed: .jpg, .jpeg, .png)"
-  defp error_to_string(:too_many_files), do: "Too many files (maximum 1)"
+  defp assign_form(socket, %Ecto.Changeset{} = changeset) do
+    form = to_form(changeset, as: "user")
+    assign(socket, form: form)
+  end
 end

@@ -325,7 +325,7 @@ defmodule JustATemplate.Accounts do
   Gets the absolute path for storing profile pictures.
   """
   def profile_picture_path do
-    Application.app_dir(:just_a_template, "priv/static/uploads/profile_pictures")
+    Path.expand("priv/static/uploads/profile_pictures")
   end
 
   @doc """

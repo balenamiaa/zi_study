@@ -20,7 +20,7 @@ defmodule JustATemplate.MixProject do
   def application do
     [
       mod: {JustATemplate.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :httpoison]
     ]
   end
 
@@ -53,6 +53,7 @@ defmodule JustATemplate.MixProject do
        depth: 1},
       {:swoosh, "~> 1.5"},
       {:live_svelte, "~> 0.16.0"},
+      {:httpoison, "~> 2.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},

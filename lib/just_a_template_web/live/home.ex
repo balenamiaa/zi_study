@@ -24,7 +24,7 @@ defmodule JustATemplateWeb.HomeLive do
           <div class="card bg-base-200 shadow-md hover:shadow-lg transition-all">
             <div class="card-body">
               <h2 class="card-title flex gap-2">
-                <.icon name="hero-academic-cap-solid" class="size-5 text-primary" /> An example of a progress bar
+                <.icon name="hero-academic-cap-solid" class="size-5 text-primary" /> Some Stuff
               </h2>
 
               <p>Access high-quality learning materials tailored to your needs.</p>
