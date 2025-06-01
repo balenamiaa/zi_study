@@ -8,14 +8,14 @@ config :pbkdf2_elixir, :rounds, 1
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :just_a_template, JustATemplate.Repo,
-  database: Path.expand("../just_a_template_test.db", __DIR__),
+config :zi_study, ZiStudy.Repo,
+  database: Path.expand("../zi_study_test.db", __DIR__),
   pool_size: 5,
   pool: Ecto.Adapters.SQL.Sandbox
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
-config :just_a_template, JustATemplateWeb.Endpoint,
+config :zi_study, ZiStudyWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "rOPDuNQKNdrRn1jlzsWWtii5u3M1rALWpsVF5Ui7DtJ7mlzvbz91IByC3HB6Nlii",
   server: false

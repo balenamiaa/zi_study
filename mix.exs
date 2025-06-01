@@ -1,9 +1,9 @@
-defmodule JustATemplate.MixProject do
+defmodule ZiStudy.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :just_a_template,
+      app: :zi_study,
       version: "0.1.0",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -19,7 +19,7 @@ defmodule JustATemplate.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {JustATemplate.Application, []},
+      mod: {ZiStudy.Application, []},
       extra_applications: [:logger, :runtime_tools, :httpoison]
     ]
   end
@@ -76,7 +76,7 @@ defmodule JustATemplate.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.deploy": [
-        "tailwind just_a_template --minify",
+        "tailwind zi_study --minify",
         "cmd --cd assets node build.js --deploy",
         "phx.digest"
       ]

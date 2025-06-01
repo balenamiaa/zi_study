@@ -7,40 +7,46 @@
 # General application configuration
 import Config
 
-config :just_a_template, :scopes,
+config :zi_study, ZiStudy.Repo,
+  database: "zi_study_repo",
+  username: "user",
+  password: "pass",
+  hostname: "localhost"
+
+config :zi_study, :scopes,
   user: [
     default: true,
-    module: JustATemplate.Accounts.Scope,
+    module: ZiStudy.Accounts.Scope,
     assign_key: :current_scope,
     access_path: [:user, :id],
     schema_key: :user_id,
     schema_type: :id,
     schema_table: :users,
-    test_data_fixture: JustATemplate.AccountsFixtures,
+    test_data_fixture: ZiStudy.AccountsFixtures,
     test_login_helper: :register_and_log_in_user
   ]
 
-config :just_a_template,
-  ecto_repos: [JustATemplate.Repo],
+config :zi_study,
+  ecto_repos: [ZiStudy.Repo],
   generators: [timestamp_type: :utc_datetime]
 
 # Configures the endpoint
-config :just_a_template, JustATemplateWeb.Endpoint,
+config :zi_study, ZiStudyWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: JustATemplateWeb.ErrorHTML, json: JustATemplateWeb.ErrorJSON],
+    formats: [html: ZiStudyWeb.ErrorHTML, json: ZiStudyWeb.ErrorJSON],
     layout: false
   ],
-  pubsub_server: JustATemplate.PubSub,
+  pubsub_server: ZiStudy.PubSub,
   live_view: [signing_salt: "TjW5907C"]
 
-config :just_a_template, JustATemplate.Mailer, adapter: Swoosh.Adapters.Local
+config :zi_study, ZiStudy.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "4.0.9",
-  just_a_template: [
+  zi_study: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css
