@@ -11,6 +11,7 @@ defmodule ZiStudy.Questions do
   alias ZiStudy.Questions.Question
   alias ZiStudy.Questions.QuestionSet
   alias ZiStudy.Questions.Tag
+  alias ZiStudy.Questions.Answer
 
   alias ZiStudy.QuestionsOps.Converter
   alias ZiStudy.QuestionsOps.JsonSerializer
@@ -58,7 +59,16 @@ defmodule ZiStudy.Questions do
   Creates a question set.
   """
   def create_question_set(%User{} = user, attrs \\ %{}) do
-    attrs_with_owner = Map.put(attrs, "owner_id", user.id)
+    # Normalize string keys to atom keys for the changeset
+    normalized_attrs =
+      for {key, value} <- attrs, into: %{} do
+        case key do
+          key when is_binary(key) -> {String.to_atom(key), value}
+          key when is_atom(key) -> {key, value}
+        end
+      end
+
+    attrs_with_owner = Map.put(normalized_attrs, :owner_id, user.id)
 
     %QuestionSet{}
     |> QuestionSet.changeset(attrs_with_owner)
@@ -70,10 +80,19 @@ defmodule ZiStudy.Questions do
   These sets are always public by default.
   """
   def create_question_set_ownerless(attrs \\ %{}) do
+    # Normalize string keys to atom keys for the changeset
+    normalized_attrs =
+      for {key, value} <- attrs, into: %{} do
+        case key do
+          key when is_binary(key) -> {String.to_atom(key), value}
+          key when is_atom(key) -> {key, value}
+        end
+      end
+
     attrs_normalized =
-      attrs
-      |> Map.put_new("owner_id", nil)
-      |> Map.put_new("is_private", false)
+      normalized_attrs
+      |> Map.put_new(:owner_id, nil)
+      |> Map.put_new(:is_private, false)
 
     %QuestionSet{}
     |> QuestionSet.changeset(attrs_normalized)
@@ -99,32 +118,30 @@ defmodule ZiStudy.Questions do
   defp add_questions_to_set_impl(
          %QuestionSet{} = question_set,
          question_data_for_assoc,
-         imported_questions_structs
+         _imported_questions_structs
        ) do
-    new_associations_with_join_data =
-      Enum.map(question_data_for_assoc, fn %{id: q_id, position: pos} ->
-        # Find the full question struct from the imported list
-        question_struct = Enum.find(imported_questions_structs, &(&1.id == q_id))
-        # Add the join data. This modification is temporary for the changeset.
-        Map.put(question_struct, :question_set_questions_join, %{position: pos})
+    max_position_query = from(qsj in "question_set_questions",
+      where: qsj.question_set_id == ^question_set.id,
+      select: max(qsj.position)
+    )
+
+    max_position = Repo.one(max_position_query) || 0
+
+    Repo.transaction(fn ->
+      Enum.with_index(question_data_for_assoc, fn %{id: q_id, position: pos}, index ->
+        actual_position = if pos, do: pos, else: max_position + index + 1
+
+        Repo.insert_all("question_set_questions", [
+          %{
+            question_set_id: question_set.id,
+            question_id: q_id,
+            position: actual_position
+          }
+        ])
       end)
 
-    # To truly "add" without losing existing questions, we need to combine them.
-    current_question_set = Repo.preload(question_set, :questions)
-    existing_associations = current_question_set.questions || []
-
-    # Combine new associations with existing ones.
-    all_associations_for_changeset = new_associations_with_join_data ++ existing_associations
-
-    # Use an empty attrs map for changes via put_assoc
-    changeset =
-      QuestionSet.changeset(current_question_set, %{})
-      |> Ecto.Changeset.put_assoc(:questions, all_associations_for_changeset)
-
-    case Repo.update(changeset) do
-      {:ok, updated_set} -> {:ok, Repo.preload(updated_set, :questions)}
-      error -> error
-    end
+      {:ok, Repo.preload(question_set, :questions, force: true)}
+    end)
   end
 
   @doc """
@@ -166,9 +183,14 @@ defmodule ZiStudy.Questions do
   The `processed_question_content` should be one of the `ZiStudy.QuestionsOps.Processed.Question.*` structs.
   """
   def create_question(processed_question_content) do
+    data_map = Processed.Question.to_map(processed_question_content)
+
+    string_key_data = for {key, value} <- data_map, into: %{} do
+      {to_string(key), value}
+    end
+
     attrs = %{
-      data: Processed.Question.to_map(processed_question_content)
-      # type and difficulty are set by the Question changeset from the data map
+      data: string_key_data
     }
 
     %Question{}
@@ -206,69 +228,80 @@ defmodule ZiStudy.Questions do
   def import_questions_from_json(json_string, user_id, question_set_id \\ nil) do
     with {:ok, raw_list} <- Jason.decode(json_string),
          true <- is_list(raw_list) do
-      import_structs = Enum.map(raw_list, &JsonSerializer.map_to_import_struct/1)
 
-      processed_contents = Enum.map(import_structs, &Converter.to_processed_content/1)
-
-      Repo.transaction(fn ->
-        imported_questions =
-          Enum.with_index(processed_contents)
-          |> Enum.map(fn {content, index} ->
-            case create_question(content) do
-              {:ok, question} ->
-                question
-
-              {:error, changeset} ->
-                # If a single question fails, roll back the entire transaction
-                Repo.rollback(
-                  "Failed to import question at index #{index}: #{inspect(changeset.errors)}"
-                )
+      processed_contents =
+        Enum.map(raw_list, fn item ->
+          try do
+            if Map.has_key?(item, "question_type") do
+              Processed.Question.from_map(item)
+            else
+              import_struct = JsonSerializer.map_to_import_struct(item)
+              Converter.to_processed_content(import_struct)
             end
-          end)
-
-        # If question_set_id is provided, add imported questions to the set
-        if question_set_id do
-          case get_question_set(question_set_id) do
-            nil ->
-              Repo.rollback("Question set with id #{question_set_id} not found.")
-
-            question_set ->
-              is_owner = question_set.owner_id == user_id
-
-              # Can add more conditions in the future if needed
-              can_add_to_set = is_owner
-
-              unless can_add_to_set do
-                Repo.rollback(
-                  "User #{user_id} not authorized to add questions to set #{question_set_id}."
-                )
-              end
-
-              # Prepare question IDs with positions for adding to the set
-              # Positions are 1-based for the newly imported questions within this batch
-              question_data_for_assoc =
-                Enum.with_index(imported_questions, fn question, index ->
-                  %{id: question.id, position: index + 1}
-                end)
-
-              case add_questions_to_set_impl(
-                     question_set,
-                     question_data_for_assoc,
-                     imported_questions
-                   ) do
-                {:ok, _updated_set} ->
-                  :ok
-
-                {:error, reason} ->
-                  Repo.rollback("Failed to add questions to set: #{inspect(reason)}")
-              end
+          rescue
+            error ->
+              {:error, "Failed to process item: #{inspect(error)}"}
           end
-        else
-          :ok
-        end
+        end)
 
-        {:ok, imported_questions}
-      end)
+      failed_conversions = Enum.filter(processed_contents, &match?({:error, _}, &1))
+      if length(failed_conversions) > 0 do
+        {:error, :invalid_question_data, failed_conversions}
+      else
+        Repo.transaction(fn ->
+          imported_questions =
+            Enum.with_index(processed_contents)
+            |> Enum.map(fn {content, index} ->
+              case create_question(content) do
+                {:ok, question} ->
+                  question
+
+                {:error, changeset} ->
+                  Repo.rollback(
+                    "Failed to import question at index #{index}: #{inspect(changeset.errors)}"
+                  )
+              end
+            end)
+
+          if question_set_id do
+            case get_question_set(question_set_id) do
+              nil ->
+                Repo.rollback("Question set with id #{question_set_id} not found.")
+
+              question_set ->
+                is_owner = question_set.owner_id == user_id
+                can_add_to_set = is_owner
+
+                unless can_add_to_set do
+                  Repo.rollback(
+                    "User #{user_id} not authorized to add questions to set #{question_set_id}."
+                  )
+                end
+
+                question_data_for_assoc =
+                  Enum.with_index(imported_questions, fn question, index ->
+                    %{id: question.id, position: index + 1}
+                  end)
+
+                case add_questions_to_set_impl(
+                       question_set,
+                       question_data_for_assoc,
+                       imported_questions
+                     ) do
+                  {:ok, _updated_set} ->
+                    :ok
+
+                  {:error, reason} ->
+                    Repo.rollback("Failed to add questions to set: #{inspect(reason)}")
+                end
+            end
+          else
+            :ok
+          end
+
+          imported_questions
+        end)
+      end
     else
       {:error, error_from_jason_decode} ->
         {:error, :invalid_json_payload, error_from_jason_decode}
@@ -289,8 +322,15 @@ defmodule ZiStudy.Questions do
   Creates a tag.
   """
   def create_tag(attrs \\ %{}) do
+    normalized_attrs = for {key, value} <- attrs, into: %{} do
+      case key do
+        key when is_binary(key) -> {String.to_atom(key), value}
+        key when is_atom(key) -> {key, value}
+      end
+    end
+
     %Tag{}
-    |> Tag.changeset(attrs)
+    |> Tag.changeset(normalized_attrs)
     |> Repo.insert()
   end
 
@@ -310,6 +350,8 @@ defmodule ZiStudy.Questions do
   """
   def add_tags_to_question_set(%QuestionSet{} = question_set, tag_names_or_ids)
       when is_list(tag_names_or_ids) do
+    question_set = Repo.preload(question_set, :tags)
+
     tags_to_associate =
       Enum.map(tag_names_or_ids, fn item ->
         case item do
@@ -319,11 +361,9 @@ defmodule ZiStudy.Questions do
           name when is_binary(name) ->
             case get_or_create_tag(name) do
               {:ok, tag} -> tag
-              # Error creating tag, skip
               _ -> nil
             end
 
-          # Invalid item, skip
           _ ->
             nil
         end
@@ -369,6 +409,355 @@ defmodule ZiStudy.Questions do
     case Repo.update(changeset) do
       {:ok, updated_set} -> {:ok, Repo.preload(updated_set, :tags)}
       error -> error
+    end
+  end
+
+  @doc """
+  Returns a list of all answers for a specific question.
+  """
+  def list_answers_for_question(question_id) do
+    Answer
+    |> where([a], a.question_id == ^question_id)
+    |> preload([:user])
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns a list of all answers for a specific user.
+  """
+  def list_answers_for_user(user_id) do
+    Answer
+    |> where([a], a.user_id == ^user_id)
+    |> preload([:question])
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single answer by ID.
+  """
+  def get_answer(id) do
+    Answer
+    |> Repo.get(id)
+    |> case do
+      nil -> nil
+      answer -> Repo.preload(answer, [:user, :question])
+    end
+  end
+
+  @doc """
+  Gets an answer for a specific user and question combination.
+  """
+  def get_user_answer(user_id, question_id) do
+    Answer
+    |> where([a], a.user_id == ^user_id and a.question_id == ^question_id)
+    |> preload([:user, :question])
+    |> Repo.one()
+  end
+
+  @doc """
+  Creates an answer.
+  """
+  def create_answer(attrs \\ %{}) do
+    %Answer{}
+    |> Answer.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates an answer.
+  """
+  def update_answer(%Answer{} = answer, attrs) do
+    answer
+    |> Answer.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Creates or updates an answer for a user-question combination.
+  If an answer already exists, it updates it. Otherwise, it creates a new one.
+  """
+  def upsert_answer(user_id, question_id, answer_data, is_correct \\ 2) do
+    case get_user_answer(user_id, question_id) do
+      nil ->
+        create_answer(%{
+          user_id: user_id,
+          question_id: question_id,
+          data: answer_data,
+          is_correct: is_correct
+        })
+
+      existing_answer ->
+        update_answer(existing_answer, %{
+          data: answer_data,
+          is_correct: is_correct
+        })
+    end
+  end
+
+  @doc """
+  Deletes an answer.
+  """
+  def delete_answer(%Answer{} = answer) do
+    Repo.delete(answer)
+  end
+
+  @doc """
+  Gets answer statistics for a user.
+  Returns a map with total_answers, correct_answers, incorrect_answers, and unevaluated_answers.
+  """
+  def get_user_answer_stats(user_id) do
+    stats_query =
+      from a in Answer,
+        where: a.user_id == ^user_id,
+        group_by: a.is_correct,
+        select: {a.is_correct, count(a.id)}
+
+    stats = Repo.all(stats_query) |> Enum.into(%{})
+
+    %{
+      total_answers: Map.values(stats) |> Enum.sum(),
+      correct_answers: Map.get(stats, 1, 0),
+      incorrect_answers: Map.get(stats, 0, 0),
+      unevaluated_answers: Map.get(stats, 2, 0)
+    }
+  end
+
+  @doc """
+  Gets answer statistics for a specific question.
+  Returns a map with total_answers, correct_answers, incorrect_answers, and unevaluated_answers.
+  """
+  def get_question_answer_stats(question_id) do
+    stats_query =
+      from a in Answer,
+        where: a.question_id == ^question_id,
+        group_by: a.is_correct,
+        select: {a.is_correct, count(a.id)}
+
+    stats = Repo.all(stats_query) |> Enum.into(%{})
+
+    %{
+      total_answers: Map.values(stats) |> Enum.sum(),
+      correct_answers: Map.get(stats, 1, 0),
+      incorrect_answers: Map.get(stats, 0, 0),
+      unevaluated_answers: Map.get(stats, 2, 0)
+    }
+  end
+
+  @doc """
+  Gets performance statistics for a user on a specific question set.
+  Returns stats about the user's answers to questions in the given question set.
+  """
+  def get_user_question_set_stats(user_id, question_set_id) do
+    stats_query =
+      from a in Answer,
+        join: q in Question,
+        on: a.question_id == q.id,
+        join: qs in assoc(q, :question_sets),
+        where: a.user_id == ^user_id and qs.id == ^question_set_id,
+        group_by: a.is_correct,
+        select: {a.is_correct, count(a.id)}
+
+    stats = Repo.all(stats_query) |> Enum.into(%{})
+
+    %{
+      total_answers: Map.values(stats) |> Enum.sum(),
+      correct_answers: Map.get(stats, 1, 0),
+      incorrect_answers: Map.get(stats, 0, 0),
+      unevaluated_answers: Map.get(stats, 2, 0)
+    }
+  end
+
+  @doc """
+  Marks answers as correct or incorrect based on the question data.
+  This is useful for automatically grading questions with known correct answers.
+  Only updates answers that are currently unevaluated (is_correct = 2).
+  """
+  def auto_grade_answers(question_id) do
+    question = get_question(question_id)
+
+    if question do
+      unevaluated_answers = from(a in Answer,
+        where: a.question_id == ^question_id and a.is_correct == 2,
+        preload: [:user]
+      ) |> Repo.all()
+
+      Enum.each(unevaluated_answers, fn answer ->
+        is_correct = evaluate_answer_correctness(question.data, answer.data)
+        update_answer(answer, %{is_correct: if(is_correct, do: 1, else: 0)})
+      end)
+
+      {:ok, length(unevaluated_answers)}
+    else
+      {:error, :question_not_found}
+    end
+  end
+
+  defp evaluate_answer_correctness(question_data, answer_data) do
+    case question_data["question_type"] do
+      "mcq_single" ->
+        selected_index = answer_data["selected_index"]
+        correct_index = question_data["correct_index"]
+        selected_index == correct_index
+
+      "mcq_multi" ->
+        selected_indices = answer_data["selected_indices"] || []
+        correct_indices = question_data["correct_indices"] || []
+        MapSet.new(selected_indices) == MapSet.new(correct_indices)
+
+      "true_false" ->
+        selected = answer_data["selected"]
+        correct = question_data["is_correct_true"]
+        selected == correct
+
+      "cloze" ->
+        user_answers = answer_data["answers"] || []
+        correct_answers = question_data["answers"] || []
+        normalized_user = Enum.map(user_answers, &String.downcase(String.trim(&1)))
+        normalized_correct = Enum.map(correct_answers, &String.downcase(String.trim(&1)))
+        normalized_user == normalized_correct
+
+      "emq" ->
+        user_matches = answer_data["matches"] || []
+        correct_matches = question_data["matches"] || []
+        MapSet.new(user_matches) == MapSet.new(correct_matches)
+
+      "written" ->
+        false
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
+  Gets a question by ID and loads it into a processed content struct.
+  """
+  def get_question_as_processed(id) do
+    case get_question(id) do
+      nil ->
+        nil
+
+      question ->
+        try do
+          {:ok, Processed.Question.from_map(question.data)}
+        rescue
+          _ -> {:error, :invalid_question_data}
+        end
+    end
+  end
+
+  @doc """
+  Searches questions by text content.
+  Returns questions where the question text or instructions contains the search term (case insensitive).
+  """
+  def search_questions(search_term, limit \\ 50) do
+    search_pattern = "%#{String.downcase(search_term)}%"
+
+    Question
+    |> where([q],
+      fragment("LOWER(?) LIKE ?", q.data["question_text"], ^search_pattern) or
+      fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
+    )
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists questions by difficulty level.
+  """
+  def list_questions_by_difficulty(difficulty) do
+    Question
+    |> where([q], q.difficulty == ^difficulty)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists questions by type.
+  """
+  def list_questions_by_type(type) do
+    Question
+    |> where([q], q.type == ^type)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets questions that belong to a specific question set with their positions.
+  Returns questions ordered by their position in the set.
+  """
+  def get_question_set_questions_with_positions(question_set_id) do
+    from(q in Question,
+      join: qsj in "question_set_questions",
+      on: q.id == qsj.question_id,
+      where: qsj.question_set_id == ^question_set_id,
+      order_by: qsj.position,
+      select: %{question: q, position: qsj.position}
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Updates the position of questions in a question set.
+  `question_positions` should be a list of maps with :question_id and :position keys.
+  """
+  def update_question_positions_in_set(question_set_id, question_positions) do
+    Repo.transaction(fn ->
+      Enum.with_index(question_positions, fn %{question_id: question_id}, index ->
+        from(qsj in "question_set_questions",
+          where: qsj.question_set_id == ^question_set_id and qsj.question_id == ^question_id
+        )
+        |> Repo.update_all(set: [position: -(index + 1000)])
+      end)
+
+      Enum.each(question_positions, fn %{question_id: question_id, position: position} ->
+        from(qsj in "question_set_questions",
+          where: qsj.question_set_id == ^question_set_id and qsj.question_id == ^question_id
+        )
+        |> Repo.update_all(set: [position: position])
+      end)
+    end)
+  end
+
+  @doc """
+  Gets questions that have not been answered by a specific user in a question set.
+  """
+  def get_unanswered_questions_for_user_in_set(user_id, question_set_id) do
+    from(q in Question,
+      join: qsj in "question_set_questions", on: q.id == qsj.question_id,
+      left_join: a in Answer, on: q.id == a.question_id and a.user_id == ^user_id,
+      where: qsj.question_set_id == ^question_set_id and is_nil(a.id),
+      order_by: qsj.position
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Copies questions from one question set to another.
+  Maintains the same positions if possible, or appends to the end if positions conflict.
+  """
+  def copy_questions_between_sets(source_set_id, target_set_id) do
+    source_questions = get_question_set_questions_with_positions(source_set_id)
+    target_set = get_question_set(target_set_id)
+
+    if target_set do
+      max_position_query = from(qsj in "question_set_questions",
+        where: qsj.question_set_id == ^target_set_id,
+        select: max(qsj.position)
+      )
+
+      max_position = Repo.one(max_position_query) || 0
+
+      question_data_for_assoc =
+        source_questions
+        |> Enum.with_index()
+        |> Enum.map(fn {%{question: question, position: _original_position}, index} ->
+          %{id: question.id, position: max_position + index + 1}
+        end)
+
+      imported_questions = Enum.map(source_questions, &(&1.question))
+
+      add_questions_to_set_impl(target_set, question_data_for_assoc, imported_questions)
+    else
+      {:error, :target_set_not_found}
     end
   end
 end

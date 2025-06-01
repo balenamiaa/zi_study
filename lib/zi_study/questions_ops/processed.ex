@@ -119,7 +119,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               instructions: String.t() | nil,
               premises: [String.t()],
               options: [String.t()],
-              matches: [{non_neg_integer, non_neg_integer}] | nil,
+              matches: [[non_neg_integer]] | nil,
               explanation: String.t() | nil,
               difficulty: String.t(),
               question_type: String.t()
@@ -138,58 +138,70 @@ defmodule ZiStudy.QuestionsOps.Processed do
     Convert a map to processed content struct
     """
     @spec from_map(map()) :: t()
-    def from_map(%{"question_type" => question_type} = data) do
+    def from_map(data) when is_map(data) do
+      # Normalize keys to strings for consistent access
+      normalized_data =
+        case data do
+          %{} when map_size(data) == 0 -> %{}
+          _ ->
+            for {key, value} <- data, into: %{} do
+              {to_string(key), value}
+            end
+        end
+
+      question_type = normalized_data["question_type"]
+
       case question_type do
         "mcq_single" ->
           %McqSingle{
-            question_text: data["question_text"],
-            options: data["options"],
-            correct_index: data["correct_index"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            question_text: normalized_data["question_text"],
+            options: normalized_data["options"],
+            correct_index: normalized_data["correct_index"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
 
         "mcq_multi" ->
           %McqMulti{
-            question_text: data["question_text"],
-            options: data["options"],
-            correct_indices: data["correct_indices"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            question_text: normalized_data["question_text"],
+            options: normalized_data["options"],
+            correct_indices: normalized_data["correct_indices"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
 
         "written" ->
           %Written{
-            question_text: data["question_text"],
-            correct_answer: data["correct_answer"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            question_text: normalized_data["question_text"],
+            correct_answer: normalized_data["correct_answer"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
 
         "true_false" ->
           %TrueFalse{
-            question_text: data["question_text"],
-            is_correct_true: data["is_correct_true"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            question_text: normalized_data["question_text"],
+            is_correct_true: normalized_data["is_correct_true"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
 
         "cloze" ->
           %Cloze{
-            question_text: data["question_text"],
-            answers: data["answers"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            question_text: normalized_data["question_text"],
+            answers: normalized_data["answers"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
 
         "emq" ->
           %Emq{
-            instructions: data["instructions"],
-            premises: data["premises"],
-            options: data["options"],
-            matches: data["matches"],
-            explanation: data["explanation"],
-            difficulty: data["difficulty"]
+            instructions: normalized_data["instructions"],
+            premises: normalized_data["premises"],
+            options: normalized_data["options"],
+            matches: normalized_data["matches"],
+            explanation: normalized_data["explanation"],
+            difficulty: normalized_data["difficulty"]
           }
       end
     end
