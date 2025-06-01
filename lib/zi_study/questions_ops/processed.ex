@@ -20,7 +20,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               options: [String.t()],
               correct_index: non_neg_integer,
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end
@@ -41,7 +41,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               options: [String.t()],
               correct_indices: [non_neg_integer],
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end
@@ -60,7 +60,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               question_text: String.t(),
               correct_answer: String.t() | nil,
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end
@@ -79,7 +79,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               question_text: String.t(),
               is_correct_true: boolean(),
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end
@@ -98,7 +98,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               question_text: String.t(),
               answers: [String.t()],
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end
@@ -121,7 +121,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
               options: [String.t()],
               matches: [{non_neg_integer, non_neg_integer}] | nil,
               explanation: String.t() | nil,
-              difficulty: String.t() | nil,
+              difficulty: String.t(),
               question_type: String.t()
             }
     end

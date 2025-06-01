@@ -17,7 +17,7 @@ defmodule ZiStudy.Questions.Question do
   @doc false
   def changeset(question, attrs) do
     question
-    |> cast(attrs, [:data, :difficulty, :type])
+    |> cast(attrs, [:data])
     |> validate_required([:data])
     |> put_difficulty_and_type()
   end
@@ -29,7 +29,7 @@ defmodule ZiStudy.Questions.Question do
 
       data ->
         difficulty = Map.get(data, "difficulty") || Map.get(data, :difficulty)
-        type = Map.get(data, "type") || Map.get(data, :type)
+        type = Map.get(data, "question_type") || Map.get(data, :type)
 
         changeset
         |> put_change(:difficulty, difficulty)

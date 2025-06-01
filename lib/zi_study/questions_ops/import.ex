@@ -7,6 +7,11 @@ defmodule ZiStudy.QuestionsOps.Import do
     defmodule McqOption do
       @enforce_keys [:temp_id, :text]
       defstruct [:temp_id, :text]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              text: String.t()
+            }
     end
 
     defmodule McqSingle do
@@ -29,6 +34,17 @@ defmodule ZiStudy.QuestionsOps.Import do
         :correct_option_temp_id,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              question_text: String.t(),
+              retention_aid: String.t() | nil,
+              options: [McqOption.t()],
+              correct_option_temp_id: String.t() | atom(),
+              explanation: String.t() | nil
+            }
     end
 
     defmodule McqMulti do
@@ -51,6 +67,17 @@ defmodule ZiStudy.QuestionsOps.Import do
         :correct_option_temp_ids,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              question_text: String.t(),
+              retention_aid: String.t() | nil,
+              options: [McqOption.t()],
+              correct_option_temp_ids: [String.t() | atom()],
+              explanation: String.t() | nil
+            }
     end
 
     defmodule Written do
@@ -71,6 +98,16 @@ defmodule ZiStudy.QuestionsOps.Import do
         :correct_answer_text,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              question_text: String.t(),
+              retention_aid: String.t() | nil,
+              correct_answer_text: String.t(),
+              explanation: String.t() | nil
+            }
     end
 
     defmodule TrueFalse do
@@ -91,6 +128,16 @@ defmodule ZiStudy.QuestionsOps.Import do
         :is_correct_true,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              question_text: String.t(),
+              retention_aid: String.t() | nil,
+              is_correct_true: boolean(),
+              explanation: String.t() | nil
+            }
     end
 
     defmodule Cloze do
@@ -111,16 +158,36 @@ defmodule ZiStudy.QuestionsOps.Import do
         :answers,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              question_text: String.t(),
+              retention_aid: String.t() | nil,
+              answers: [String.t()],
+              explanation: String.t() | nil
+            }
     end
 
     defmodule EmqPremise do
       @enforce_keys [:temp_id, :text]
       defstruct [:temp_id, :text]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              text: String.t()
+            }
     end
 
     defmodule EmqOption do
       @enforce_keys [:temp_id, :text]
       defstruct [:temp_id, :text]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              text: String.t()
+            }
     end
 
     defmodule Emq do
@@ -145,9 +212,20 @@ defmodule ZiStudy.QuestionsOps.Import do
         :matches,
         :explanation
       ]
+
+      @type t :: %__MODULE__{
+              temp_id: String.t() | atom(),
+              question_type: String.t(),
+              difficulty: String.t(),
+              instructions: String.t(),
+              retention_aid: String.t() | nil,
+              premises: [EmqPremise.t()],
+              options: [EmqOption.t()],
+              matches: [{String.t() | atom(), String.t() | atom()}],
+              explanation: String.t() | nil
+            }
     end
 
-    @type temp_id :: String.t() | atom()
     @type t :: McqSingle.t() | McqMulti.t() | Written.t() | TrueFalse.t() | Cloze.t() | Emq.t()
   end
 end
