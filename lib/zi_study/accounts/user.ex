@@ -129,7 +129,7 @@ defmodule ZiStudy.Accounts.User do
     false
   end
 
-  def profile_picture_changeset(user, attrs, opts \\ []) do
+  def profile_picture_changeset(user, attrs, _opts \\ []) do
     user
     |> cast(attrs, [:profile_picture])
   end
