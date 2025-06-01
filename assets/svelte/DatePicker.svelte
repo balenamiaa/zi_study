@@ -1,4 +1,10 @@
 <script>
+    // TODO: Update this component to match our theme that's based on DaisyUI. Then upstream it to the template repo.
+    // Also, fix the bug where if we click on a date and not drag to another date,
+    // the "end date" is immediately selected as both start and end date, which is what we clicked.
+    // This behavior should not happen; we should still be allowed to select the end date later.
+    // Also, we can possibly make it look better.
+
     import { onMount } from "svelte";
 
     let { live, startDateStr, endDateStr } = $props();
