@@ -37,6 +37,17 @@
         live.handleEvent("upload_success", ({ preview_url }) => {
             // imagePreview = preview_url;
             // Not really needed because imagePreviewUrl will bet set from the backend which will update here.
+
+            uploadLoading = false;
+            uploadError = null;
+            if (typeof onClose === "function") {
+                onClose();
+            }
+        });
+
+        live.handleEvent("upload_error", ({ message }) => {
+            uploadError = message;
+            uploadLoading = false;
         });
     });
 
@@ -70,12 +81,15 @@
                 );
 
                 const chunkArrayBuffer = await chunkBlob.arrayBuffer();
+                const chunkBase64 = btoa(
+                    String.fromCharCode(...new Uint8Array(chunkArrayBuffer)),
+                );
 
                 live.pushEvent("upload_file_chunked", {
                     state: "chunk",
                     file_name: file.name,
                     chunk_index: chunkIndex,
-                    chunk_data: chunkArrayBuffer,
+                    base64_chunk_data: chunkBase64,
                     chunk_size: chunkArrayBuffer.byteLength,
                 });
 
@@ -112,13 +126,21 @@
             return;
         }
 
-        if (items.length > 1) {
+        var imageOnlyItems = [];
+
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith("image")) {
+                imageOnlyItems.push(items[i]);
+            }
+        }
+
+        if (imageOnlyItems.length > 1) {
             uploadError = "Multiple items pasted. Please paste only one image.";
             uploadLoading = false;
             return;
         }
 
-        const firstItem = items[0];
+        const firstItem = imageOnlyItems[0];
         if (!firstItem || !firstItem.type.startsWith("image")) {
             uploadError =
                 "Pasted item is not an image. Found type: " +
@@ -401,8 +423,8 @@
                     type="text"
                     label="Image URL"
                     placeholder="https://example.com/image.jpg"
-                    value={imageUrl}
-                    helperText="Enter the URL of an image"
+                    fullWidth={true}
+                    bind:value={imageUrl}
                     disabled={uploadLoading}
                     class="mb-4"
                 />
@@ -415,7 +437,7 @@
                         !imageUrl ||
                         imageUrl.trim() === ""}
                     loading={uploadLoading}
-                    onClick={handleUrlSubmit}
+                    onclick={handleUrlSubmit}
                 >
                     {uploadLoading ? "Uploading..." : "Use this image"}
                 </Button>

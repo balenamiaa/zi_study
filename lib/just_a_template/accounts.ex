@@ -77,6 +77,7 @@ defmodule JustATemplate.Accounts do
   def register_user(attrs) do
     %User{}
     |> User.email_changeset(attrs)
+    |> User.profile_picture_changeset(attrs)
     |> Repo.insert()
   end
 
@@ -317,15 +318,24 @@ defmodule JustATemplate.Accounts do
   """
   def update_user_profile_picture(user, filename) when is_binary(filename) do
     user
-    |> User.email_changeset(%{profile_picture: filename})
+    |> User.profile_picture_changeset(%{profile_picture: filename})
     |> Repo.update()
   end
 
   @doc """
   Gets the absolute path for storing profile pictures.
   """
-  def profile_picture_path do
-    Path.expand("priv/static/uploads/profile_pictures")
+  def profile_picture_path_base do
+    Path.join([
+      Application.app_dir(:just_a_template, "priv"),
+      "static",
+      "uploads",
+      "profile_pictures"
+    ])
+  end
+
+  def profile_picture_serving_path(filename) when is_binary(filename) do
+    "/uploads/profile_pictures/#{filename}"
   end
 
   @doc """
@@ -335,6 +345,6 @@ defmodule JustATemplate.Accounts do
   def get_profile_picture_url(%User{profile_picture: nil}), do: "/images/default-avatar.svg"
 
   def get_profile_picture_url(%User{profile_picture: filename}) do
-    "/uploads/profile_pictures/#{filename}"
+    profile_picture_serving_path(filename)
   end
 end

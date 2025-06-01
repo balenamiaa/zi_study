@@ -26,7 +26,7 @@ defmodule JustATemplate.Accounts.User do
   """
   def email_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :profile_picture])
+    |> cast(attrs, [:email])
     |> validate_email(opts)
   end
 
@@ -127,5 +127,10 @@ defmodule JustATemplate.Accounts.User do
   def valid_password?(_, _) do
     Pbkdf2.no_user_verify()
     false
+  end
+
+  def profile_picture_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:profile_picture])
   end
 end
