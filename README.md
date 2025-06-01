@@ -124,20 +124,20 @@ Below are the specific fields required for each `question_type`.
 
 #### 5. Cloze (Fill in the Blanks) (`cloze`)
 
-*   `cloze_text` (String): The text containing blanks. Blanks are typically represented by a placeholder like `{{c1::correct_answer::hint}}` or `[[c1]]` if answers are separate.
-    *   The system expects blanks in the format `{{c#::answer::hint}}` or `{{c#::answer}}` for inline answers, or simply `[[c#]]` if answers are provided in a separate `blanks` array (though the current backend implementation primarily focuses on inline answers within `cloze_text` for simplicity in the `Processed` struct which expects a single `cloze_text` string).
+*   `question_text` (String): The text containing blanks. Blanks are typically represented by a placeholder like `{{c1::correct_answer::hint}}` or `[[c1]]` if answers are separate.
+    *   The system expects blanks in the format `{{c#::answer::hint}}` or `{{c#::answer}}` for inline answers, or simply `[[c#]]` if answers are provided in a separate `blanks` array (though the current backend implementation primarily focuses on inline answers within `question_text` for simplicity in the `Processed` struct which expects a single `question_text` string).
 *   `blanks` (Array of Objects, Optional but Recommended for complex cases): Defines each blank and its correct answer(s).
     *   Each blank object: `{"temp_id": "c1", "correct_answers": ["answer1", "answer2"]}`
-    *   *Note: The current `Processed.Cloze` struct stores the full `cloze_text` with answers embedded. For imports, providing a `cloze_text` with embedded answers is the most direct route. The `blanks` array might be used by a more sophisticated converter in the future or for validation.* The `ZiStudy.QuestionsOps.Converter` currently expects the `cloze_text` to be self-contained or easily parsable into the `Processed.Cloze` format.
+    *   *Note: The current `Processed.Cloze` struct stores the full `question_text` with answers embedded. For imports, providing a `question_text` with embedded answers is the most direct route. The `blanks` array might be used by a more sophisticated converter in the future or for validation.* The `ZiStudy.QuestionsOps.Converter` currently expects the `question_text` to be self-contained or easily parsable into the `Processed.Cloze` format.
 
-**Example (with inline answers in `cloze_text`):**
+**Example (with inline answers in `question_text`):**
 ```json
 {
   "temp_id": "q5_cloze",
   "question_type": "cloze",
   "difficulty": "medium",
   "question_text": "Fill in the blanks for the famous phrase.",
-  "cloze_text": "To {{c1::be}} or not to {{c2::be}}, that is the question.",
+  "question_text": "To {{c1::be}} or not to {{c2::be}}, that is the question.",
   "explanation": "From Shakespeare's Hamlet."
 }
 ```
