@@ -120,10 +120,11 @@ defmodule ZiStudy.Questions do
          question_data_for_assoc,
          _imported_questions_structs
        ) do
-    max_position_query = from(qsj in "question_set_questions",
-      where: qsj.question_set_id == ^question_set.id,
-      select: max(qsj.position)
-    )
+    max_position_query =
+      from(qsj in "question_set_questions",
+        where: qsj.question_set_id == ^question_set.id,
+        select: max(qsj.position)
+      )
 
     max_position = Repo.one(max_position_query) || 0
 
@@ -160,6 +161,69 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
+  Adds a list of questions to a question set.
+
+  `questions` can be a list of:
+  - Question structs
+  - Question IDs (integers)
+  - Maps with :id and optional :position keys
+
+  If `user_id` is provided, authorization is checked to ensure the user can modify the question set.
+  If positions are not specified, questions are appended to the end in the order provided.
+
+  Returns `{:ok, updated_question_set}` on success or `{:error, reason}` on failure.
+  """
+  def add_questions_to_set(%QuestionSet{} = question_set, questions, user_id \\ nil)
+      when is_list(questions) do
+    # Authorization check if user_id is provided
+    if user_id do
+      # Reload the question set to get the latest data
+      fresh_question_set = get_question_set(question_set.id)
+
+      if fresh_question_set && fresh_question_set.owner_id == user_id do
+        do_add_questions_to_set(fresh_question_set, questions)
+      else
+        {:error, :unauthorized}
+      end
+    else
+      do_add_questions_to_set(question_set, questions)
+    end
+  end
+
+  defp do_add_questions_to_set(question_set, questions) do
+    question_data_for_assoc =
+      questions
+      |> Enum.map(fn question ->
+        case question do
+          %Question{id: id} ->
+            %{id: id, position: nil}
+
+          %{id: id, position: position} when is_integer(id) ->
+            %{id: id, position: position}
+
+          %{id: id} when is_integer(id) ->
+            %{id: id, position: nil}
+
+          id when is_integer(id) ->
+            %{id: id, position: nil}
+
+          _ ->
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if length(question_data_for_assoc) == 0 do
+      {:error, :no_valid_questions}
+    else
+      case add_questions_to_set_impl(question_set, question_data_for_assoc, []) do
+        {:ok, updated_set} -> {:ok, updated_set}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
   Returns a list of all questions.
   """
   def list_questions do
@@ -185,9 +249,10 @@ defmodule ZiStudy.Questions do
   def create_question(processed_question_content) do
     data_map = Processed.Question.to_map(processed_question_content)
 
-    string_key_data = for {key, value} <- data_map, into: %{} do
-      {to_string(key), value}
-    end
+    string_key_data =
+      for {key, value} <- data_map, into: %{} do
+        {to_string(key), value}
+      end
 
     attrs = %{
       data: string_key_data
@@ -228,7 +293,6 @@ defmodule ZiStudy.Questions do
   def import_questions_from_json(json_string, user_id, question_set_id \\ nil) do
     with {:ok, raw_list} <- Jason.decode(json_string),
          true <- is_list(raw_list) do
-
       processed_contents =
         Enum.map(raw_list, fn item ->
           try do
@@ -245,6 +309,7 @@ defmodule ZiStudy.Questions do
         end)
 
       failed_conversions = Enum.filter(processed_contents, &match?({:error, _}, &1))
+
       if length(failed_conversions) > 0 do
         {:error, :invalid_question_data, failed_conversions}
       else
@@ -322,12 +387,13 @@ defmodule ZiStudy.Questions do
   Creates a tag.
   """
   def create_tag(attrs \\ %{}) do
-    normalized_attrs = for {key, value} <- attrs, into: %{} do
-      case key do
-        key when is_binary(key) -> {String.to_atom(key), value}
-        key when is_atom(key) -> {key, value}
+    normalized_attrs =
+      for {key, value} <- attrs, into: %{} do
+        case key do
+          key when is_binary(key) -> {String.to_atom(key), value}
+          key when is_atom(key) -> {key, value}
+        end
       end
-    end
 
     %Tag{}
     |> Tag.changeset(normalized_attrs)
@@ -576,10 +642,12 @@ defmodule ZiStudy.Questions do
     question = get_question(question_id)
 
     if question do
-      unevaluated_answers = from(a in Answer,
-        where: a.question_id == ^question_id and a.is_correct == 2,
-        preload: [:user]
-      ) |> Repo.all()
+      unevaluated_answers =
+        from(a in Answer,
+          where: a.question_id == ^question_id and a.is_correct == 2,
+          preload: [:user]
+        )
+        |> Repo.all()
 
       Enum.each(unevaluated_answers, fn answer ->
         is_correct = evaluate_answer_correctness(question.data, answer.data)
@@ -654,9 +722,10 @@ defmodule ZiStudy.Questions do
     search_pattern = "%#{String.downcase(search_term)}%"
 
     Question
-    |> where([q],
+    |> where(
+      [q],
       fragment("LOWER(?) LIKE ?", q.data["question_text"], ^search_pattern) or
-      fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
+        fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
     )
     |> limit(^limit)
     |> Repo.all()
@@ -722,8 +791,10 @@ defmodule ZiStudy.Questions do
   """
   def get_unanswered_questions_for_user_in_set(user_id, question_set_id) do
     from(q in Question,
-      join: qsj in "question_set_questions", on: q.id == qsj.question_id,
-      left_join: a in Answer, on: q.id == a.question_id and a.user_id == ^user_id,
+      join: qsj in "question_set_questions",
+      on: q.id == qsj.question_id,
+      left_join: a in Answer,
+      on: q.id == a.question_id and a.user_id == ^user_id,
       where: qsj.question_set_id == ^question_set_id and is_nil(a.id),
       order_by: qsj.position
     )
@@ -739,10 +810,11 @@ defmodule ZiStudy.Questions do
     target_set = get_question_set(target_set_id)
 
     if target_set do
-      max_position_query = from(qsj in "question_set_questions",
-        where: qsj.question_set_id == ^target_set_id,
-        select: max(qsj.position)
-      )
+      max_position_query =
+        from(qsj in "question_set_questions",
+          where: qsj.question_set_id == ^target_set_id,
+          select: max(qsj.position)
+        )
 
       max_position = Repo.one(max_position_query) || 0
 
@@ -753,7 +825,7 @@ defmodule ZiStudy.Questions do
           %{id: question.id, position: max_position + index + 1}
         end)
 
-      imported_questions = Enum.map(source_questions, &(&1.question))
+      imported_questions = Enum.map(source_questions, & &1.question)
 
       add_questions_to_set_impl(target_set, question_data_for_assoc, imported_questions)
     else

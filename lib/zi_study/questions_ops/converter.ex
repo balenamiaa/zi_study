@@ -18,7 +18,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           options: Enum.map(data.options, & &1.text),
           correct_index: correct_index,
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
 
       %QuestionImport.McqMulti{} = data ->
@@ -30,7 +31,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           options: Enum.map(data.options, & &1.text),
           correct_indices: correct_indices,
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
 
       %QuestionImport.Written{} = data ->
@@ -38,7 +40,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           question_text: data.question_text,
           correct_answer: data.correct_answer_text,
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
 
       %QuestionImport.TrueFalse{} = data ->
@@ -46,7 +49,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           question_text: data.question_text,
           is_correct_true: data.is_correct_true,
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
 
       %QuestionImport.Cloze{} = data ->
@@ -54,7 +58,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           question_text: data.question_text,
           answers: data.answers,
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
 
       %QuestionImport.Emq{} = data ->
@@ -64,7 +69,8 @@ defmodule ZiStudy.QuestionsOps.Converter do
           options: Enum.map(data.options, & &1.text),
           matches: convert_matches(data.matches, data.premises, data.options),
           explanation: data.explanation,
-          difficulty: data.difficulty
+          difficulty: data.difficulty,
+          retention_aid: data.retention_aid
         }
     end
   end

@@ -71,4 +71,14 @@ defmodule ZiStudyWeb.Router do
 
     post "/users/update-password", UserSessionController, :update_password
   end
+
+  scope "/active-learning", ZiStudyWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :active_learning,
+      on_mount: [{ZiStudyWeb.UserAuth, :require_authenticated}] do
+      live "/", ActiveLearningLive.Index
+      live "/question_set/:id", ActiveLearningLive.QuestionSet
+    end
+  end
 end

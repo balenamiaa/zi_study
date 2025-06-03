@@ -3,28 +3,14 @@ defmodule ZiStudyWeb.HomeLive do
   alias ZiStudyWeb.Layouts
 
   def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:startDateStr, "2025-01-01")
-     |> assign(:endDateStr, "2025-06-01")}
+    {:ok, socket}
   end
 
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="space-y-6">
-        <section class="w-full py-6">
-          <.svelte
-            name="DatePicker"
-            socket={@socket}
-            props={
-              %{
-                startDateStr: @startDateStr,
-                endDateStr: @endDateStr
-              }
-            }
-          />
-        </section>
+        <section class="w-full py-6"></section>
         <section class="w-full py-6">
           <div class="w-full space-y-4">
             <h1 class="text-3xl font-bold">Welcome to ZiStudy</h1>
@@ -97,9 +83,5 @@ defmodule ZiStudyWeb.HomeLive do
       </div>
     </Layouts.app>
     """
-  end
-
-  def handle_event("date_changed", %{"start_date_str" => start_date_str, "end_date_str" => end_date_str}, socket) do
-    {:noreply, socket |> assign(:startDateStr, start_date_str) |> assign(:endDateStr, end_date_str)}
   end
 end

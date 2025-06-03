@@ -63,6 +63,7 @@ Below are the specific fields required for each `question_type`.
     {"temp_id": "opt_c", "text": "London"}
   ],
   "correct_option_temp_id": "opt_b",
+  "retention_aid": "Think about major European capitals",
   "explanation": "Paris is the capital of France."
 }
 ```
@@ -87,6 +88,7 @@ Below are the specific fields required for each `question_type`.
     {"temp_id": "opt_y", "text": "Yellow"}
   ],
   "correct_option_temp_ids": ["opt_r", "opt_b", "opt_y"],
+  "retention_aid": "Remember the color wheel basics",
   "explanation": "Red, yellow, and blue are primary colors. Green is secondary."
 }
 ```
@@ -102,6 +104,7 @@ Below are the specific fields required for each `question_type`.
   "question_type": "written",
   "difficulty": "easy",
   "question_text": "Explain the concept of photosynthesis in your own words.",
+  "retention_aid": "Think about how plants make food from sunlight",
   "explanation": "Photosynthesis is the process used by plants to convert light energy into chemical energy."
 }
 ```
@@ -118,28 +121,43 @@ Below are the specific fields required for each `question_type`.
   "difficulty": "easy",
   "question_text": "The Earth is flat.",
   "is_true": false,
+  "retention_aid": "Consider what we know about Earth's shape from space",
   "explanation": "The Earth is an oblate spheroid."
 }
 ```
 
 #### 5. Cloze (Fill in the Blanks) (`cloze`)
 
-*   `question_text` (String): The text containing blanks. Blanks are typically represented by a placeholder like `{{c1::correct_answer::hint}}` or `[[c1]]` if answers are separate.
-    *   The system expects blanks in the format `{{c#::answer::hint}}` or `{{c#::answer}}` for inline answers, or simply `[[c#]]` if answers are provided in a separate `blanks` array (though the current backend implementation primarily focuses on inline answers within `question_text` for simplicity in the `Processed` struct which expects a single `question_text` string).
-*   `blanks` (Array of Objects, Optional but Recommended for complex cases): Defines each blank and its correct answer(s).
-    *   Each blank object: `{"temp_id": "c1", "correct_answers": ["answer1", "answer2"]}`
-    *   *Note: The current `Processed.Cloze` struct stores the full `question_text` with answers embedded. For imports, providing a `question_text` with embedded answers is the most direct route. The `blanks` array might be used by a more sophisticated converter in the future or for validation.* The `ZiStudy.QuestionsOps.Converter` currently expects the `question_text` to be self-contained or easily parsable into the `Processed.Cloze` format.
+*   `question_text` (String): The text containing blanks with hints. Blanks are represented by placeholders in the format `{{c#::hint}}` where `c#` is the blank number (c1, c2, etc.) and `hint` is optional text to help the user.
+*   `answers` (Array of Strings): A list of correct answers corresponding to each blank in order. The first answer corresponds to `{{c1::}}`, the second to `{{c2::}}`, and so on.
 
-**Example (with inline answers in `question_text`):**
+**Important Notes:**
+- The `question_text` contains hints inline (e.g., `{{c1::hint1}}`), but the actual correct answers are stored separately in the `answers` array
+- Each `{{c#::hint}}` placeholder corresponds to the answer at position `(# - 1)` in the `answers` array
+- Hints in the question text are optional and can be omitted: `{{c1::}}` is valid
+
+**Example:**
 ```json
 {
   "temp_id": "q5_cloze",
   "question_type": "cloze",
   "difficulty": "medium",
-  "question_text": "Fill in the blanks for the famous phrase.",
-  "question_text": "To {{c1::be}} or not to {{c2::be}}, that is the question.",
-  "explanation": "From Shakespeare's Hamlet."
+  "question_text": "In {{c1::major conflicts}} and {{c2::diplomatic negotiations}}, there is a {{c3::mediator role}} that is very {{c4::crucial}} to a {{c5::peaceful resolution}}.",
+  "answers": ["wars", "treaties", "role", "important", "solution"],
+  "retention_aid": "Think about conflict resolution",
+  "explanation": "This describes the process of international diplomacy."
 }
+```
+
+**Usage in Code:**
+```elixir
+ZiStudy.Questions.create_question(%ZiStudy.QuestionsOps.Processed.Question.Cloze{
+  question_text:
+    "In {{c1::hint1}} and {{c2::hint2}}, there is a {{c3::hint3}} that is very {{c4::hint4}} to a {{c5::hint5}}.",
+  difficulty: "5",
+  retention_aid: "Some retention aid",
+  answers: ["answer1", "answer2", "answer3", "answer4", "answer5"]
+})
 ```
 
 #### 6. Extended Matching Question (`emq`)
@@ -175,6 +193,7 @@ Below are the specific fields required for each `question_type`.
       "correct_option_temp_id": "ao_beta"
     }
   ],
+  "retention_aid": "Remember drug side effects and contraindications",
   "explanation": "ACE inhibitors can cause a dry cough. Beta blockers are used for angina but can cause bradycardia."
 }
 ```

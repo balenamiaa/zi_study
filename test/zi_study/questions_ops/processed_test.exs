@@ -11,7 +11,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "options" => ["3", "4", "5", "6"],
         "correct_index" => 1,
         "explanation" => "2 + 2 = 4",
-        "difficulty" => "easy"
+        "difficulty" => "easy",
+        "retention_aid" => "Remember basic arithmetic"
       }
 
       result = Processed.Question.from_map(map)
@@ -22,6 +23,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.correct_index == 1
       assert result.explanation == "2 + 2 = 4"
       assert result.difficulty == "easy"
+      assert result.retention_aid == "Remember basic arithmetic"
       assert result.question_type == "mcq_single"
     end
 
@@ -32,7 +34,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "options" => ["2", "3", "4", "5"],
         "correct_indices" => [0, 1, 3],
         "explanation" => "2, 3, and 5 are prime",
-        "difficulty" => "medium"
+        "difficulty" => "medium",
+        "retention_aid" => "Numbers only divisible by 1 and themselves"
       }
 
       result = Processed.Question.from_map(map)
@@ -43,6 +46,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.correct_indices == [0, 1, 3]
       assert result.explanation == "2, 3, and 5 are prime"
       assert result.difficulty == "medium"
+      assert result.retention_aid == "Numbers only divisible by 1 and themselves"
       assert result.question_type == "mcq_multi"
     end
 
@@ -52,7 +56,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "question_text" => "Explain gravity",
         "correct_answer" => "Force that attracts objects",
         "explanation" => "Gravity is fundamental",
-        "difficulty" => "hard"
+        "difficulty" => "hard",
+        "retention_aid" => "Think about what keeps us on Earth"
       }
 
       result = Processed.Question.from_map(map)
@@ -62,6 +67,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.correct_answer == "Force that attracts objects"
       assert result.explanation == "Gravity is fundamental"
       assert result.difficulty == "hard"
+      assert result.retention_aid == "Think about what keeps us on Earth"
       assert result.question_type == "written"
     end
 
@@ -71,7 +77,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "question_text" => "The Earth is round",
         "is_correct_true" => true,
         "explanation" => "Earth is spherical",
-        "difficulty" => "easy"
+        "difficulty" => "easy",
+        "retention_aid" => "Think about globe shape"
       }
 
       result = Processed.Question.from_map(map)
@@ -81,6 +88,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.is_correct_true == true
       assert result.explanation == "Earth is spherical"
       assert result.difficulty == "easy"
+      assert result.retention_aid == "Think about globe shape"
       assert result.question_type == "true_false"
     end
 
@@ -90,7 +98,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "question_text" => "Paris is the capital of _____",
         "answers" => ["France"],
         "explanation" => "Paris is France's capital",
-        "difficulty" => "easy"
+        "difficulty" => "easy",
+        "retention_aid" => "Think about European capitals"
       }
 
       result = Processed.Question.from_map(map)
@@ -100,6 +109,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.answers == ["France"]
       assert result.explanation == "Paris is France's capital"
       assert result.difficulty == "easy"
+      assert result.retention_aid == "Think about European capitals"
       assert result.question_type == "cloze"
     end
 
@@ -111,7 +121,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "options" => ["Mercury", "Venus", "Earth"],
         "matches" => [{0, 0}, {1, 1}],
         "explanation" => "Mercury is first, Venus is second",
-        "difficulty" => "medium"
+        "difficulty" => "medium",
+        "retention_aid" => "Remember solar system order"
       }
 
       result = Processed.Question.from_map(map)
@@ -123,7 +134,24 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert result.matches == [{0, 0}, {1, 1}]
       assert result.explanation == "Mercury is first, Venus is second"
       assert result.difficulty == "medium"
+      assert result.retention_aid == "Remember solar system order"
       assert result.question_type == "emq"
+    end
+
+    test "creates structs with nil retention_aid when not provided" do
+      map = %{
+        "question_type" => "mcq_single",
+        "question_text" => "What is 2 + 2?",
+        "options" => ["3", "4", "5", "6"],
+        "correct_index" => 1,
+        "explanation" => "2 + 2 = 4",
+        "difficulty" => "easy"
+      }
+
+      result = Processed.Question.from_map(map)
+
+      assert %Processed.Question.McqSingle{} = result
+      assert result.retention_aid == nil
     end
   end
 
@@ -134,7 +162,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         options: ["3", "4", "5", "6"],
         correct_index: 1,
         explanation: "2 + 2 = 4",
-        difficulty: "easy"
+        difficulty: "easy",
+        retention_aid: "Basic math reminder"
       }
 
       result = Processed.Question.to_map(struct)
@@ -145,6 +174,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         correct_index: 1,
         explanation: "2 + 2 = 4",
         difficulty: "easy",
+        retention_aid: "Basic math reminder",
         question_type: "mcq_single"
       }
 
@@ -157,7 +187,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         options: ["2", "3", "4"],
         correct_indices: [0, 1],
         explanation: "2 and 3 are prime",
-        difficulty: "medium"
+        difficulty: "medium",
+        retention_aid: "Prime number definition"
       }
 
       result = Processed.Question.to_map(struct)
@@ -168,6 +199,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         correct_indices: [0, 1],
         explanation: "2 and 3 are prime",
         difficulty: "medium",
+        retention_aid: "Prime number definition",
         question_type: "mcq_multi"
       }
 
@@ -179,7 +211,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         question_text: "Explain gravity",
         correct_answer: "A fundamental force",
         explanation: "Gravity attracts masses",
-        difficulty: "hard"
+        difficulty: "hard",
+        retention_aid: "Physics concept"
       }
 
       result = Processed.Question.to_map(struct)
@@ -189,6 +222,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         correct_answer: "A fundamental force",
         explanation: "Gravity attracts masses",
         difficulty: "hard",
+        retention_aid: "Physics concept",
         question_type: "written"
       }
 
@@ -200,7 +234,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         question_text: "The Earth is flat",
         is_correct_true: false,
         explanation: "Earth is spherical",
-        difficulty: "easy"
+        difficulty: "easy",
+        retention_aid: "Geography fact"
       }
 
       result = Processed.Question.to_map(struct)
@@ -210,6 +245,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         is_correct_true: false,
         explanation: "Earth is spherical",
         difficulty: "easy",
+        retention_aid: "Geography fact",
         question_type: "true_false"
       }
 
@@ -221,7 +257,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         question_text: "The capital of France is _____",
         answers: ["Paris"],
         explanation: "Paris is the capital",
-        difficulty: "easy"
+        difficulty: "easy",
+        retention_aid: "European geography"
       }
 
       result = Processed.Question.to_map(struct)
@@ -231,6 +268,7 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         answers: ["Paris"],
         explanation: "Paris is the capital",
         difficulty: "easy",
+        retention_aid: "European geography",
         question_type: "cloze"
       }
 
@@ -244,7 +282,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         options: ["1", "2"],
         matches: [{0, 0}, {1, 1}],
         explanation: "A matches 1, B matches 2",
-        difficulty: "medium"
+        difficulty: "medium",
+        retention_aid: "Matching concept"
       }
 
       result = Processed.Question.to_map(struct)
@@ -256,7 +295,33 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         matches: [{0, 0}, {1, 1}],
         explanation: "A matches 1, B matches 2",
         difficulty: "medium",
+        retention_aid: "Matching concept",
         question_type: "emq"
+      }
+
+      assert result == expected
+    end
+
+    test "converts struct with nil retention_aid to map" do
+      struct = %Processed.Question.McqSingle{
+        question_text: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        correct_index: 1,
+        explanation: "2 + 2 = 4",
+        difficulty: "easy",
+        retention_aid: nil
+      }
+
+      result = Processed.Question.to_map(struct)
+
+      expected = %{
+        question_text: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        correct_index: 1,
+        explanation: "2 + 2 = 4",
+        difficulty: "easy",
+        retention_aid: nil,
+        question_type: "mcq_single"
       }
 
       assert result == expected
@@ -271,7 +336,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "options" => ["A", "B", "C"],
         "correct_index" => 1,
         "explanation" => "Test explanation",
-        "difficulty" => "medium"
+        "difficulty" => "medium",
+        "retention_aid" => "Test retention aid"
       }
 
       struct = Processed.Question.from_map(original_map)
@@ -289,7 +355,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "question_text" => "Test statement",
         "is_correct_true" => false,
         "explanation" => "Test explanation",
-        "difficulty" => "easy"
+        "difficulty" => "easy",
+        "retention_aid" => "Test retention aid"
       }
 
       struct = Processed.Question.from_map(original_map)
@@ -308,7 +375,8 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
         "options" => ["Option A", "Option B"],
         "matches" => [{0, 1}, {1, 0}],
         "explanation" => "Matching explanation",
-        "difficulty" => "hard"
+        "difficulty" => "hard",
+        "retention_aid" => "Test retention aid"
       }
 
       struct = Processed.Question.from_map(original_map)
@@ -317,6 +385,27 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       original_with_atom_keys = Map.new(original_map, fn {k, v} -> {String.to_atom(k), v} end)
 
       assert converted_map == original_with_atom_keys
+    end
+
+    test "round-trip conversion with nil retention_aid" do
+      original_map = %{
+        "question_type" => "mcq_single",
+        "question_text" => "Test question",
+        "options" => ["A", "B", "C"],
+        "correct_index" => 1,
+        "explanation" => "Test explanation",
+        "difficulty" => "medium"
+        # No retention_aid provided, should be nil
+      }
+
+      struct = Processed.Question.from_map(original_map)
+      converted_map = Processed.Question.to_map(struct)
+
+      # Add retention_aid: nil to expected result
+      expected_map = Map.new(original_map, fn {k, v} -> {String.to_atom(k), v} end)
+      expected_map = Map.put(expected_map, :retention_aid, nil)
+
+      assert converted_map == expected_map
     end
   end
 end

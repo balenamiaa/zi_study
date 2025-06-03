@@ -344,6 +344,193 @@ defmodule ZiStudy.QuestionsTest do
       assert length(source_questions) > 0
       assert length(target_questions) > 0
     end
+
+    test "add_questions_to_set/3 adds questions using Question structs" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+
+      assert question1.id in question_ids
+      assert question2.id in question_ids
+      assert length(questions_in_set) == 2
+    end
+
+    test "add_questions_to_set/3 adds questions using question IDs" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1.id, question2.id], user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+
+      assert question1.id in question_ids
+      assert question2.id in question_ids
+      assert length(questions_in_set) == 2
+    end
+
+    test "add_questions_to_set/3 adds questions using maps with positions" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      questions_with_positions = [
+        %{id: question1.id, position: 5},
+        %{id: question2.id, position: 3}
+      ]
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, questions_with_positions, user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+
+      # Find the positions
+      q1_position = Enum.find(questions_in_set, &(&1.question.id == question1.id)).position
+      q2_position = Enum.find(questions_in_set, &(&1.question.id == question2.id)).position
+
+      assert q1_position == 5
+      assert q2_position == 3
+    end
+
+    test "add_questions_to_set/3 adds questions using maps without positions" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      questions_as_maps = [
+        %{id: question1.id},
+        %{id: question2.id}
+      ]
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, questions_as_maps, user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+
+      assert question1.id in question_ids
+      assert question2.id in question_ids
+      assert length(questions_in_set) == 2
+    end
+
+    test "add_questions_to_set/3 appends to existing questions in set" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      # Add initial question via import
+      initial_question = question_fixture()
+      json_data = [Processed.Question.to_map(Processed.Question.from_map(initial_question.data))]
+      json_string = Jason.encode!(json_data)
+      Questions.import_questions_from_json(json_string, user.id, question_set.id)
+
+      # Add more questions using our new function
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      assert length(questions_in_set) == 3
+
+      # Verify the new questions have higher positions
+      positions = Enum.map(questions_in_set, &(&1.position)) |> Enum.sort()
+      assert positions == [1, 2, 3]
+    end
+
+    test "add_questions_to_set/3 without user_id works for any question set" do
+      question_set = question_set_fixture()
+      question1 = question_fixture()
+      question2 = question_fixture()
+
+      # Should work without authorization
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2])
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+
+      assert question1.id in question_ids
+      assert question2.id in question_ids
+    end
+
+    test "add_questions_to_set/3 returns error for unauthorized user" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      question_set = question_set_fixture(user1)  # owned by user1
+      question = question_fixture()
+
+      # user2 tries to add questions to user1's set
+      assert {:error, :unauthorized} = Questions.add_questions_to_set(question_set, [question], user2.id)
+
+      # Verify no questions were added
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      assert length(questions_in_set) == 0
+    end
+
+    test "add_questions_to_set/3 returns error for empty question list" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      assert {:error, :no_valid_questions} = Questions.add_questions_to_set(question_set, [], user.id)
+    end
+
+    test "add_questions_to_set/3 returns error for invalid question data" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      invalid_questions = ["invalid", %{invalid: "data"}, nil]
+
+      assert {:error, :no_valid_questions} = Questions.add_questions_to_set(question_set, invalid_questions, user.id)
+    end
+
+    test "add_questions_to_set/3 handles mixed valid and invalid questions" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question1 = question_fixture()
+      mixed_questions = [question1, "invalid", %{invalid: "data"}]
+
+      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, mixed_questions, user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      assert length(questions_in_set) == 1
+      assert List.first(questions_in_set).question.id == question1.id
+    end
+
+    test "add_questions_to_set/3 handles duplicate questions gracefully" do
+      question_set = question_set_fixture()
+      user = user_fixture()
+      Questions.update_question_set(question_set, %{owner_id: user.id})
+
+      question = question_fixture()
+
+      # Add same question twice
+      assert {:ok, _} = Questions.add_questions_to_set(question_set, [question], user.id)
+      assert {:ok, _} = Questions.add_questions_to_set(question_set, [question], user.id)
+
+      questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
+      # Should have the question twice (database allows duplicates)
+      assert length(questions_in_set) == 2
+    end
   end
 
   describe "tags" do

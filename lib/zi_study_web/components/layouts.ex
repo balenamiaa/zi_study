@@ -28,9 +28,11 @@ defmodule ZiStudyWeb.Layouts do
       </:logo_text>
       <:nav_links>
         <li><a href="/" class="font-medium">Home</a></li>
+        <li><a href={~p"/active-learning"} class="font-medium">Active Learning</a></li>
       </:nav_links>
       <:mobile_links>
         <li><a href="/" class="font-medium">Home</a></li>
+        <li><a href={~p"/active-learning"} class="font-medium">Active Learning</a></li>
       </:mobile_links>
       <:profile_links>
         <li>
