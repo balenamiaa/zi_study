@@ -521,6 +521,39 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
+  Gets all answers from a user for a list of questions efficiently.
+
+  `questions` should be a list of Question structs (can be partial structs with just :id field).
+  Returns a list of Answer structs with preloaded user and question associations.
+
+  ## Examples
+
+      iex> questions = [%Question{id: 1}, %Question{id: 2}, %Question{id: 3}]
+      iex> get_user_answers_for_questions(user_id, questions)
+      [%Answer{...}, %Answer{...}]
+  """
+    def get_user_answers_for_questions(user_id, questions) when is_list(questions) do
+    question_ids =
+      questions
+      |> Enum.map(fn
+        %Question{id: id} -> id
+        %{id: id} -> id
+        id when is_integer(id) -> id
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if Enum.empty?(question_ids) do
+      []
+    else
+      Answer
+      |> where([a], a.user_id == ^user_id and a.question_id in ^question_ids)
+      |> preload([:user, :question])
+      |> Repo.all()
+    end
+  end
+
+  @doc """
   Creates an answer.
   """
   def create_answer(attrs \\ %{}) do

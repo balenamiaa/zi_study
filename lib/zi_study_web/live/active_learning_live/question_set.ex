@@ -3,7 +3,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
   alias ZiStudy.Questions
 
-  def mount(params, session, socket) do
+  def mount(params, _session, socket) do
     current_user = socket.assigns.current_scope.user
 
     {:ok,

@@ -353,7 +353,7 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       question_ids = Enum.map(questions_in_set, &(&1.question.id))
@@ -371,7 +371,7 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1.id, question2.id], user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1.id, question2.id], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       question_ids = Enum.map(questions_in_set, &(&1.question.id))
@@ -394,7 +394,7 @@ defmodule ZiStudy.QuestionsTest do
         %{id: question2.id, position: 3}
       ]
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, questions_with_positions, user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, questions_with_positions, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
 
@@ -419,7 +419,7 @@ defmodule ZiStudy.QuestionsTest do
         %{id: question2.id}
       ]
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, questions_as_maps, user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, questions_as_maps, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       question_ids = Enum.map(questions_in_set, &(&1.question.id))
@@ -444,7 +444,7 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(questions_in_set) == 3
@@ -460,7 +460,7 @@ defmodule ZiStudy.QuestionsTest do
       question2 = question_fixture()
 
       # Should work without authorization
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, [question1, question2])
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2])
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       question_ids = Enum.map(questions_in_set, &(&1.question.id))
@@ -509,7 +509,7 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       mixed_questions = [question1, "invalid", %{invalid: "data"}]
 
-      assert {:ok, updated_set} = Questions.add_questions_to_set(question_set, mixed_questions, user.id)
+      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, mixed_questions, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(questions_in_set) == 1
@@ -566,7 +566,7 @@ defmodule ZiStudy.QuestionsTest do
       tag1 = tag_fixture()
       tag2 = tag_fixture()
 
-      assert {:ok, updated_set} = Questions.add_tags_to_question_set(question_set, [tag1.name, tag2.id])
+      assert {:ok, updated_set} = Questions.add_tags_to_question_set(question_set, [tag1.name, tag2.name])
 
       tag_names = Enum.map(updated_set.tags, & &1.name)
       assert tag1.name in tag_names
@@ -671,6 +671,186 @@ defmodule ZiStudy.QuestionsTest do
       answer = answer_fixture(user, question)
       assert {:ok, %Answer{}} = Questions.delete_answer(answer)
       assert Questions.get_answer(answer.id) == nil
+    end
+
+    test "get_user_answers_for_questions/2 returns answers for user and list of questions", %{user: user} do
+      # Create multiple questions
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+      question3 = question_fixture(:written)
+
+      # Create answers for some questions
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+      # No answer for question3
+
+      # Test with Question structs
+      questions = [question1, question2, question3]
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      # Should return only the answers that exist
+      assert length(answers) == 2
+      answer_ids = Enum.map(answers, & &1.id)
+      assert answer1.id in answer_ids
+      assert answer2.id in answer_ids
+
+      # Verify associations are preloaded
+      first_answer = List.first(answers)
+      assert first_answer.user.id == user.id
+      assert first_answer.question != nil
+    end
+
+    test "get_user_answers_for_questions/2 works with partial Question structs", %{user: user} do
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+
+      # Test with partial structs (only id field)
+      questions = [%Question{id: question1.id}, %Question{id: question2.id}]
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      assert length(answers) == 2
+      answer_ids = Enum.map(answers, & &1.id)
+      assert answer1.id in answer_ids
+      assert answer2.id in answer_ids
+    end
+
+    test "get_user_answers_for_questions/2 works with maps containing id", %{user: user} do
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+
+      # Test with maps
+      questions = [%{id: question1.id}, %{id: question2.id}]
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      assert length(answers) == 2
+      answer_ids = Enum.map(answers, & &1.id)
+      assert answer1.id in answer_ids
+      assert answer2.id in answer_ids
+    end
+
+    test "get_user_answers_for_questions/2 works with integer IDs", %{user: user} do
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+
+      # Test with raw integer IDs
+      questions = [question1.id, question2.id]
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      assert length(answers) == 2
+      answer_ids = Enum.map(answers, & &1.id)
+      assert answer1.id in answer_ids
+      assert answer2.id in answer_ids
+    end
+
+    test "get_user_answers_for_questions/2 handles mixed input types", %{user: user} do
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+      question3 = question_fixture(:written)
+
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+      answer3 = answer_fixture(user, question3)
+
+      # Mix different input types
+      questions = [
+        question1,                  # Full Question struct
+        %Question{id: question2.id}, # Partial Question struct
+        %{id: question3.id},        # Map with id
+        question1.id                # Raw integer (duplicate, should be handled)
+      ]
+
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      # Should handle duplicates and return unique answers
+      assert length(answers) == 3
+      answer_ids = Enum.map(answers, & &1.id)
+      assert answer1.id in answer_ids
+      assert answer2.id in answer_ids
+      assert answer3.id in answer_ids
+    end
+
+    test "get_user_answers_for_questions/2 returns empty list for user with no answers" do
+      user_with_no_answers = user_fixture()
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+
+      questions = [question1, question2]
+      answers = Questions.get_user_answers_for_questions(user_with_no_answers.id, questions)
+
+      assert answers == []
+    end
+
+    test "get_user_answers_for_questions/2 returns empty list for empty question list", %{user: user} do
+      answers = Questions.get_user_answers_for_questions(user.id, [])
+      assert answers == []
+    end
+
+    test "get_user_answers_for_questions/2 filters out invalid questions", %{user: user} do
+      question1 = question_fixture(:mcq_single)
+      answer1 = answer_fixture(user, question1)
+
+      # Mix valid and invalid inputs
+      questions = [
+        question1,           # Valid
+        %{invalid: "data"},  # Invalid - no id
+        nil,                 # Invalid - nil
+        %{id: nil},          # Invalid - nil id
+        999999               # Valid format but non-existent question
+      ]
+
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      # Should only return answer for the valid existing question
+      assert length(answers) == 1
+      assert List.first(answers).id == answer1.id
+    end
+
+    test "get_user_answers_for_questions/2 only returns answers for the specified user", %{user: user} do
+      other_user = user_fixture()
+      question1 = question_fixture(:mcq_single)
+      question2 = question_fixture(:true_false)
+
+      # Create answers for both users
+      user_answer = answer_fixture(user, question1)
+      other_user_answer = answer_fixture(other_user, question1)
+      answer_fixture(other_user, question2)  # Another answer for other user
+
+      questions = [question1, question2]
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      # Should only return the answer for the specified user
+      assert length(answers) == 1
+      assert List.first(answers).id == user_answer.id
+      refute other_user_answer.id in Enum.map(answers, & &1.id)
+    end
+
+    test "get_user_answers_for_questions/2 handles large number of questions efficiently", %{user: user} do
+      # Create many questions and answers
+      questions_and_answers =
+        Enum.map(1..50, fn _ ->
+          question = question_fixture(:mcq_single)
+          answer = answer_fixture(user, question)
+          {question, answer}
+        end)
+
+      questions = Enum.map(questions_and_answers, fn {question, _} -> question end)
+      expected_answer_ids = Enum.map(questions_and_answers, fn {_, answer} -> answer.id end)
+
+      # Should efficiently fetch all answers in a single query
+      answers = Questions.get_user_answers_for_questions(user.id, questions)
+
+      assert length(answers) == 50
+      actual_answer_ids = Enum.map(answers, & &1.id)
+      assert MapSet.new(expected_answer_ids) == MapSet.new(actual_answer_ids)
     end
   end
 

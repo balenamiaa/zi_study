@@ -15,7 +15,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.Index do
     """
   end
 
-  def mount(params, session, socket) do
+  def mount(_params, _session, socket) do
     current_user = socket.assigns.current_scope.user
 
     {:ok,
