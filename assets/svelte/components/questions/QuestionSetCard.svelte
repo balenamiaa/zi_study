@@ -25,9 +25,7 @@
         });
     }
 
-    // Navigate to question set (placeholder for now)
     function navigateToQuestionSet() {
-        console.log("Navigating to question set:", questionSet.id);
         // This will be implemented with proper routing later
     }
 </script>
@@ -35,6 +33,14 @@
 <div
     class="card bg-base-200 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 group"
     onclick={navigateToQuestionSet}
+    onkeydown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            navigateToQuestionSet();
+        }
+    }}
+    aria-label={questionSet.title}
+    role="button"
+    tabindex="0"
 >
     <!-- Card Header -->
     <div class="card-body p-6">
@@ -151,6 +157,7 @@
     .line-clamp-2 {
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
