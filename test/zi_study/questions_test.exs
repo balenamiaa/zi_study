@@ -1240,4 +1240,235 @@ defmodule ZiStudy.QuestionsTest do
       assert positions_map[second_q.question.id] == 1
     end
   end
+
+  describe "answer correctness validation" do
+    setup do
+      user = user_fixture()
+      %{user: user}
+    end
+
+    test "check_answer_correctness/2 validates MCQ single answers correctly" do
+      question = question_fixture(:mcq_single)  # correct_index: 1
+
+      # Test correct answer
+      correct_answer = %{"selected_index" => 1}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test incorrect answer
+      incorrect_answer = %{"selected_index" => 0}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+
+      # Test invalid index
+      invalid_answer = %{"selected_index" => 99}
+      assert {:error, :invalid_option_index} = Questions.check_answer_correctness(question.id, invalid_answer)
+
+      # Test negative index
+      negative_answer = %{"selected_index" => -1}
+      assert {:error, :invalid_option_index} = Questions.check_answer_correctness(question.id, negative_answer)
+    end
+
+    test "check_answer_correctness/2 validates MCQ multi answers correctly" do
+      question = question_fixture(:mcq_multi)  # correct_indices: [0, 1, 3]
+
+      # Test correct answer (exact match)
+      correct_answer = %{"selected_indices" => [0, 1, 3]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test correct answer (different order)
+      reordered_answer = %{"selected_indices" => [3, 0, 1]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, reordered_answer)
+
+      # Test incorrect answer (missing options)
+      partial_answer = %{"selected_indices" => [0, 1]}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, partial_answer)
+
+      # Test incorrect answer (extra options)
+      extra_answer = %{"selected_indices" => [0, 1, 2, 3]}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, extra_answer)
+
+      # Test invalid indices
+      invalid_answer = %{"selected_indices" => [0, 1, 99]}
+      assert {:error, :invalid_option_indices} = Questions.check_answer_correctness(question.id, invalid_answer)
+    end
+
+    test "check_answer_correctness/2 validates true/false answers correctly" do
+      question = question_fixture(:true_false)  # is_correct_true: true
+
+      # Test correct answer
+      correct_answer = %{"is_true" => true}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test incorrect answer
+      incorrect_answer = %{"is_true" => false}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+
+      # Test with old format 'selected' (backward compatibility)
+      legacy_correct = %{"selected" => true}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, legacy_correct)
+
+      legacy_incorrect = %{"selected" => false}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, legacy_incorrect)
+    end
+
+    test "check_answer_correctness/2 validates cloze answers correctly", %{user: user} do
+      question = question_fixture(:cloze)  # answers: ["Paris", "Europe"]
+
+      # Test correct answer (exact case)
+      correct_answer = %{"answers" => ["Paris", "Europe"]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test correct answer (case insensitive)
+      case_answer = %{"answers" => ["paris", "EUROPE"]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, case_answer)
+
+      # Test correct answer (with extra whitespace)
+      whitespace_answer = %{"answers" => [" Paris ", " Europe "]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, whitespace_answer)
+
+      # Test incorrect answer
+      incorrect_answer = %{"answers" => ["London", "Europe"]}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+
+      # Test wrong number of answers
+      wrong_count_answer = %{"answers" => ["Paris"]}
+      assert {:error, :wrong_number_of_answers} = Questions.check_answer_correctness(question.id, wrong_count_answer)
+
+      # Test too many answers
+      extra_answers = %{"answers" => ["Paris", "Europe", "France"]}
+      assert {:error, :wrong_number_of_answers} = Questions.check_answer_correctness(question.id, extra_answers)
+    end
+
+    test "check_answer_correctness/2 validates written answers correctly", %{user: user} do
+      question = question_fixture(:written)
+
+      # Written answers always return false (require manual grading)
+      answer = %{"text" => "Any written response"}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, answer)
+
+      # Test with legacy format
+      legacy_answer = %{"answer_text" => "Legacy format response"}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, legacy_answer)
+    end
+
+    test "check_answer_correctness/2 validates EMQ answers correctly", %{user: user} do
+      question = question_fixture(:emq)  # matches: [[0, 0], [1, 1], [2, 2]]
+
+      # Test correct answer (exact order)
+      correct_answer = %{"matches" => [[0, 0], [1, 1], [2, 2]]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test correct answer (different order)
+      reordered_answer = %{"matches" => [[2, 2], [0, 0], [1, 1]]}
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, reordered_answer)
+
+      # Test incorrect answer
+      incorrect_answer = %{"matches" => [[0, 1], [1, 0], [2, 2]]}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+
+      # Test incomplete answer
+      incomplete_answer = %{"matches" => [[0, 0], [1, 1]]}
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incomplete_answer)
+    end
+
+    test "check_answer_correctness/2 handles invalid question ID" do
+      answer = %{"selected_index" => 0}
+      assert {:error, :question_not_found} = Questions.check_answer_correctness(999999, answer)
+    end
+
+    test "check_answer_correctness/2 handles mismatched answer and question types" do
+      mcq_question = question_fixture(:mcq_single)
+
+      # Try to answer MCQ with true/false answer
+      tf_answer = %{"is_true" => true}
+      assert {:error, {:answer_processing_failed, _}} = Questions.check_answer_correctness(mcq_question.id, tf_answer)
+
+      # Try to answer MCQ with cloze answer
+      cloze_answer = %{"answers" => ["some", "answers"]}
+      assert {:error, {:answer_processing_failed, _}} = Questions.check_answer_correctness(mcq_question.id, cloze_answer)
+    end
+
+    test "check_answer_correctness/2 handles invalid answer format", %{user: user} do
+      question = question_fixture(:mcq_single)
+
+      # Empty answer
+      assert {:error, _} = Questions.check_answer_correctness(question.id, %{})
+
+      # Wrong field name
+      wrong_field = %{"wrong_field" => "value"}
+      assert {:error, _} = Questions.check_answer_correctness(question.id, wrong_field)
+
+      # Invalid data type
+      invalid_type = %{"selected_index" => "not_a_number"}
+      assert {:error, _} = Questions.check_answer_correctness(question.id, invalid_type)
+    end
+
+
+  end
+
+  describe "delete_user_answer/2" do
+    setup do
+      user = user_fixture()
+      question = question_fixture()
+      %{user: user, question: question}
+    end
+
+        test "delete_user_answer/2 deletes existing user answer", %{user: user, question: question} do
+      # Create an answer
+      _answer = answer_fixture(user, question)
+
+      # Verify it exists
+      assert Questions.get_user_answer(user.id, question.id) != nil
+
+      # Delete it
+      assert {:ok, _} = Questions.delete_user_answer(user.id, question.id)
+
+      # Verify it's gone
+      assert Questions.get_user_answer(user.id, question.id) == nil
+    end
+
+    test "delete_user_answer/2 returns ok when answer doesn't exist", %{user: user, question: question} do
+      # Try to delete non-existent answer
+      assert {:ok, :not_found} = Questions.delete_user_answer(user.id, question.id)
+    end
+
+    test "delete_user_answer/2 only deletes the specific user's answer", %{user: user, question: question} do
+      other_user = user_fixture()
+
+      # Create answers for both users
+      user_answer = answer_fixture(user, question)
+      other_answer = answer_fixture(other_user, question)
+
+      # Delete first user's answer
+      assert {:ok, _} = Questions.delete_user_answer(user.id, question.id)
+
+      # Verify only the first user's answer was deleted
+      assert Questions.get_user_answer(user.id, question.id) == nil
+      assert Questions.get_user_answer(other_user.id, question.id) != nil
+      assert Questions.get_answer(other_answer.id) != nil
+    end
+
+    test "delete_user_answer/2 only deletes the specific question's answer", %{user: user, question: question} do
+      other_question = question_fixture()
+
+      # Create answers for both questions
+      answer1 = answer_fixture(user, question)
+      answer2 = answer_fixture(user, other_question)
+
+      # Delete answer for first question
+      assert {:ok, _} = Questions.delete_user_answer(user.id, question.id)
+
+      # Verify only the first question's answer was deleted
+      assert Questions.get_user_answer(user.id, question.id) == nil
+      assert Questions.get_user_answer(user.id, other_question.id) != nil
+      assert Questions.get_answer(answer2.id) != nil
+    end
+
+    test "delete_user_answer/2 works with non-existent user", %{question: question} do
+      assert {:ok, :not_found} = Questions.delete_user_answer(999999, question.id)
+    end
+
+    test "delete_user_answer/2 works with non-existent question", %{user: user} do
+      assert {:ok, :not_found} = Questions.delete_user_answer(user.id, 999999)
+    end
+  end
 end

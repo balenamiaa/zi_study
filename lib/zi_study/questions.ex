@@ -667,6 +667,127 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
+  Validates and checks if a processed answer is correct for a given question.
+
+  Uses the typed Answer structs from Processed.Answer to ensure proper validation.
+  Returns {:ok, is_correct} or {:error, reason}.
+  """
+  def check_answer_correctness(question_id, answer_data) when is_map(answer_data) do
+    with {:ok, question} <- get_question_with_validation(question_id),
+         {:ok, processed_question} <- get_processed_question_content(question),
+         {:ok, processed_answer} <- validate_and_process_answer(answer_data, processed_question) do
+      is_correct = evaluate_processed_answer_correctness(processed_question, processed_answer)
+      {:ok, is_correct}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp get_question_with_validation(question_id) do
+    case get_question(question_id) do
+      nil -> {:error, :question_not_found}
+      question -> {:ok, question}
+    end
+  end
+
+  defp get_processed_question_content(question) do
+    try do
+      processed = Processed.Question.from_map(question.data)
+      {:ok, processed}
+    rescue
+      _ -> {:error, :invalid_question_data}
+    end
+  end
+
+  defp validate_and_process_answer(answer_data, processed_question) do
+    try do
+      # Ensure the answer type matches the question type
+      question_type = processed_question.question_type
+      answer_data_with_type = Map.put(answer_data, "answer_type", question_type)
+
+      processed_answer = Processed.Answer.from_map(answer_data_with_type)
+
+      # Additional validation based on question type
+      case validate_answer_for_question_type(processed_answer, processed_question) do
+        :ok -> {:ok, processed_answer}
+        {:error, reason} -> {:error, reason}
+      end
+    rescue
+      error -> {:error, {:answer_processing_failed, error}}
+    end
+  end
+
+  defp validate_answer_for_question_type(answer, question) do
+    case {answer, question} do
+      {%Processed.Answer.McqSingleAnswer{selected_index: idx}, %Processed.Question.McqSingle{options: options}} ->
+        if idx >= 0 and idx < length(options) do
+          :ok
+        else
+          {:error, :invalid_option_index}
+        end
+
+      {%Processed.Answer.McqMultiAnswer{selected_indices: indices}, %Processed.Question.McqMulti{options: options}} ->
+        if Enum.all?(indices, fn idx -> idx >= 0 and idx < length(options) end) do
+          :ok
+        else
+          {:error, :invalid_option_indices}
+        end
+
+      {%Processed.Answer.ClozeAnswer{answers: answers}, %Processed.Question.Cloze{answers: expected_answers}} ->
+        if length(answers) == length(expected_answers) do
+          :ok
+        else
+          {:error, :wrong_number_of_answers}
+        end
+
+      {%Processed.Answer.TrueFalseAnswer{}, %Processed.Question.TrueFalse{}} ->
+        :ok
+
+      {%Processed.Answer.WrittenAnswer{}, %Processed.Question.Written{}} ->
+        :ok
+
+      {%Processed.Answer.EmqAnswer{}, %Processed.Question.Emq{}} ->
+        :ok
+
+      _ ->
+        {:error, :mismatched_answer_question_types}
+    end
+  end
+
+  defp evaluate_processed_answer_correctness(question, answer) do
+    case {question, answer} do
+      {%Processed.Question.McqSingle{correct_index: correct_idx},
+       %Processed.Answer.McqSingleAnswer{selected_index: selected_idx}} ->
+        selected_idx == correct_idx
+
+      {%Processed.Question.McqMulti{correct_indices: correct_indices},
+       %Processed.Answer.McqMultiAnswer{selected_indices: selected_indices}} ->
+        MapSet.new(selected_indices) == MapSet.new(correct_indices)
+
+      {%Processed.Question.TrueFalse{is_correct_true: correct},
+       %Processed.Answer.TrueFalseAnswer{selected: selected}} ->
+        selected == correct
+
+      {%Processed.Question.Cloze{answers: correct_answers},
+       %Processed.Answer.ClozeAnswer{answers: user_answers}} ->
+        normalized_user = Enum.map(user_answers, &String.downcase(String.trim(&1)))
+        normalized_correct = Enum.map(correct_answers, &String.downcase(String.trim(&1)))
+        normalized_user == normalized_correct
+
+      {%Processed.Question.Emq{matches: correct_matches},
+       %Processed.Answer.EmqAnswer{matches: user_matches}} ->
+        MapSet.new(correct_matches) == MapSet.new(user_matches)
+
+      {%Processed.Question.Written{}, %Processed.Answer.WrittenAnswer{}} ->
+        # Written answers require manual grading
+        false
+
+      _ ->
+        false
+    end
+  end
+
+  @doc """
   Marks answers as correct or incorrect based on the question data.
   This is useful for automatically grading questions with known correct answers.
   Only updates answers that are currently unevaluated (is_correct = 2).
@@ -863,6 +984,16 @@ defmodule ZiStudy.Questions do
       add_questions_to_set_impl(target_set, question_data_for_assoc, imported_questions)
     else
       {:error, :target_set_not_found}
+    end
+  end
+
+  def delete_user_answer(user_id, question_id) do
+    case Repo.get_by(Answer, user_id: user_id, question_id: question_id) do
+      nil ->
+        {:ok, :not_found}
+
+      answer ->
+        Repo.delete(answer)
     end
   end
 end

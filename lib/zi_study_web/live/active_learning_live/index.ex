@@ -36,6 +36,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.Index do
         owner: owner_to_dto(question_set.owner),
         tags: Enum.map(question_set.tags, &get_tag_dto/1),
         stats: Questions.get_user_question_set_stats(user_id, question_set.id),
+        num_questions: length(question_set.questions),
         inserted_at: question_set.inserted_at,
         updated_at: question_set.updated_at
       }

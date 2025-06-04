@@ -7,6 +7,210 @@ defmodule ZiStudy.QuestionsOps.Processed do
   difficulty, explanation, and retention_aid, with type-specific fields for each question format.
   """
 
+  defmodule Answer do
+    @moduledoc """
+    Contains all processed answer type structs and conversion functions.
+
+    Each answer type struct represents the standardized format of a user's answer
+    that will be stored in the database and validated against the question data.
+    """
+
+    defmodule McqSingleAnswer do
+      @moduledoc """
+      Answer for a Multiple Choice Question with a single correct answer.
+      """
+      @enforce_keys [:selected_index]
+      defstruct [
+        :selected_index,
+        answer_type: "mcq_single"
+      ]
+
+      @type t :: %__MODULE__{
+              selected_index: non_neg_integer,
+              answer_type: String.t()
+            }
+    end
+
+    defmodule McqMultiAnswer do
+      @moduledoc """
+      Answer for a Multiple Choice Question with multiple correct answers.
+      """
+      @enforce_keys [:selected_indices]
+      defstruct [
+        :selected_indices,
+        answer_type: "mcq_multi"
+      ]
+
+      @type t :: %__MODULE__{
+              selected_indices: [non_neg_integer],
+              answer_type: String.t()
+            }
+    end
+
+    defmodule WrittenAnswer do
+      @moduledoc """
+      Answer for an open-ended written response question.
+      """
+      @enforce_keys [:text]
+      defstruct [
+        :text,
+        answer_type: "written"
+      ]
+
+      @type t :: %__MODULE__{
+              text: String.t(),
+              answer_type: String.t()
+            }
+    end
+
+    defmodule TrueFalseAnswer do
+      @moduledoc """
+      Answer for a True/False question.
+      """
+      @enforce_keys [:selected]
+      defstruct [
+        :selected,
+        answer_type: "true_false"
+      ]
+
+      @type t :: %__MODULE__{
+              selected: boolean(),
+              answer_type: String.t()
+            }
+    end
+
+    defmodule ClozeAnswer do
+      @moduledoc """
+      Answer for a fill-in-the-blanks question.
+      """
+      @enforce_keys [:answers]
+      defstruct [
+        :answers,
+        answer_type: "cloze"
+      ]
+
+      @type t :: %__MODULE__{
+              answers: [String.t()],
+              answer_type: String.t()
+            }
+    end
+
+    defmodule EmqAnswer do
+      @moduledoc """
+      Answer for an Extended Matching Question.
+      """
+      @enforce_keys [:matches]
+      defstruct [
+        :matches,
+        answer_type: "emq"
+      ]
+
+      @type t :: %__MODULE__{
+              matches: [[non_neg_integer]],
+              answer_type: String.t()
+            }
+    end
+
+    @type t ::
+            McqSingleAnswer.t()
+            | McqMultiAnswer.t()
+            | WrittenAnswer.t()
+            | TrueFalseAnswer.t()
+            | ClozeAnswer.t()
+            | EmqAnswer.t()
+
+    @doc """
+    Convert a map to the appropriate processed answer struct.
+
+    Takes a map (typically from JSON decoding or form submission) and converts it
+    to the corresponding answer type struct based on the "answer_type" field.
+    """
+    def from_map(data) when is_map(data) do
+      # Normalize keys to strings for consistent access
+      normalized_data =
+        for {key, value} <- data, into: %{} do
+          {to_string(key), value}
+        end
+
+      answer_type = normalized_data["answer_type"]
+
+      case answer_type do
+        "mcq_single" ->
+          selected_index = normalized_data["selected_index"]
+          if is_nil(selected_index) do
+            raise ArgumentError, "MCQ single answer requires selected_index"
+          end
+          %McqSingleAnswer{
+            selected_index: selected_index
+          }
+
+        "mcq_multi" ->
+          selected_indices = normalized_data["selected_indices"]
+          if is_nil(selected_indices) do
+            raise ArgumentError, "MCQ multi answer requires selected_indices"
+          end
+          %McqMultiAnswer{
+            selected_indices: selected_indices
+          }
+
+        "written" ->
+          text = normalized_data["text"] || normalized_data["answer_text"]
+          if is_nil(text) do
+            raise ArgumentError, "Written answer requires text or answer_text"
+          end
+          %WrittenAnswer{
+            text: text
+          }
+
+        "true_false" ->
+          selected = if Map.has_key?(normalized_data, "selected") do
+            normalized_data["selected"]
+          else
+            normalized_data["is_true"]
+          end
+          if is_nil(selected) do
+            raise ArgumentError, "True/false answer requires selected or is_true"
+          end
+          %TrueFalseAnswer{
+            selected: selected
+          }
+
+        "cloze" ->
+          answers = normalized_data["answers"]
+          if is_nil(answers) do
+            raise ArgumentError, "Cloze answer requires answers"
+          end
+          %ClozeAnswer{
+            answers: answers
+          }
+
+        "emq" ->
+          matches = normalized_data["matches"]
+          if is_nil(matches) do
+            raise ArgumentError, "EMQ answer requires matches"
+          end
+          %EmqAnswer{
+            matches: matches
+          }
+
+        nil ->
+          raise KeyError, key: "answer_type", term: normalized_data
+
+        unknown_type ->
+          raise RuntimeError, "Unknown answer type: #{unknown_type}"
+      end
+    end
+
+    @doc """
+    Convert a processed answer struct to a map.
+    """
+    def to_map(answer) do
+      answer
+      |> Map.from_struct()
+      |> Map.delete(:__struct__)
+    end
+  end
+
   defmodule Question do
     @moduledoc """
     Contains all processed question type structs and conversion functions.
@@ -266,7 +470,7 @@ defmodule ZiStudy.QuestionsOps.Processed do
             instructions: "Match each symptom to the correct drug class.",
             premises: ["Dry cough", "Bradycardia"],
             options: ["ACE Inhibitor", "Beta Blocker", "Calcium Channel Blocker"],
-            matches: [{0, 0}, {1, 1}],  # Dry cough -> ACE Inhibitor, Bradycardia -> Beta Blocker
+            matches: [[0, 0], [1, 1]],  # Dry cough -> ACE Inhibitor, Bradycardia -> Beta Blocker
             difficulty: "hard",
             retention_aid: "Remember drug side effects and contraindications",
             explanation: "ACE inhibitors can cause dry cough, beta blockers can cause bradycardia."
@@ -409,6 +613,12 @@ defmodule ZiStudy.QuestionsOps.Processed do
             difficulty: normalized_data["difficulty"],
             retention_aid: normalized_data["retention_aid"]
           }
+
+        nil ->
+          raise KeyError, key: "question_type", term: normalized_data
+
+        unknown_type ->
+          raise RuntimeError, "Unknown question type: #{unknown_type}"
       end
     end
 
