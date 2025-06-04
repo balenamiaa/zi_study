@@ -1,5 +1,6 @@
 <script>
     import QuestionSetCard from "../components/QuestionSetCard.svelte";
+    import { SearchIcon } from "lucide-svelte";
 
     let { live, questionSets } = $props();
 
@@ -36,32 +37,15 @@
         <div
             class="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"
         >
-            <div class="relative flex-1 max-w-md">
-                <div
-                    class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-                >
-                    <svg
-                        class="h-5 w-5 text-base-content/40"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                    </svg>
-                </div>
+            <label for="search" class="input relative flex-1 max-w-md">
+                <SearchIcon class="h-5 w-5" />
                 <input
-                    type="text"
+                    type="search"
                     bind:value={searchQuery}
                     placeholder="Search question sets..."
-                    class="input input-bordered w-full pl-10 transition-all duration-200 focus:shadow-md"
+                    class="grow"
                 />
-            </div>
+            </label>
 
             <div class="flex items-center gap-2 text-base-content/70">
                 <span class="text-sm"

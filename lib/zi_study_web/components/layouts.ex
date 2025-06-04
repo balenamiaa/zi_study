@@ -47,7 +47,7 @@ defmodule ZiStudyWeb.Layouts do
       </:actions>
     </.topbar>
 
-    <main class="container mx-auto px-4 py-24 sm:px-6 lg:px-8">
+    <main class="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
       <div class="mx-auto max-w-2xl space-y-4">
         {render_slot(@inner_block)}
       </div>
@@ -232,7 +232,7 @@ defmodule ZiStudyWeb.Layouts do
 
     <!-- Main content area -->
       <div class="flex-1 min-h-screen lg:overflow-y-auto">
-        <main class="px-4 py-24 sm:px-6 lg:px-8">
+        <main class="px-4 py-12 sm:px-6 lg:px-8">
           <div class="mx-auto max-w-6xl space-y-6">
             {render_slot(@inner_block)}
           </div>

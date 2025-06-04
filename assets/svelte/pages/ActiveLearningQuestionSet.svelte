@@ -2,7 +2,7 @@
     import FilterPanel from "../components/FilterPanel.svelte";
     import QuestionsOverview from "../components/QuestionsOverview.svelte";
     import QuestionRenderer from "../components/QuestionRenderer.svelte";
-
+    import { SearchIcon } from "lucide-svelte";
     let { live, questionSet } = $props();
 
     // State for filtering and searching
@@ -76,7 +76,7 @@
     console.log("Question Set:", questionSet);
 </script>
 
-<div class="min-h-screen bg-base-100 flex flex-col">
+<div class="min-h-screen bg-base-100 flex flex-col gap-4">
     <!-- Header -->
     <div class="bg-base-200 border-b border-base-300">
         <div class="max-w-7xl mx-auto p-4 md:p-6">
@@ -117,32 +117,15 @@
                 class="flex flex-col sm:flex-row gap-4 items-start sm:items-center"
             >
                 <!-- Search -->
-                <div class="relative flex-1 max-w-md">
-                    <div
-                        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
-                    >
-                        <svg
-                            class="h-5 w-5 text-base-content/40"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                            />
-                        </svg>
-                    </div>
+                <label for="search" class="input relative flex-1 max-w-md">
+                    <SearchIcon class="h-5 w-5" />
                     <input
-                        type="text"
+                        type="search"
                         bind:value={searchQuery}
                         placeholder="Search questions..."
-                        class="input input-bordered w-full pl-10 transition-all duration-200 focus:shadow-md"
+                        class="grow"
                     />
-                </div>
+                </label>
 
                 <!-- Filters Button -->
                 <button
@@ -223,59 +206,54 @@
         />
     {/if}
 
-    <!-- Questions Container -->
-    <div class="flex-1 overflow-hidden">
-        <div
-            bind:this={questionsContainer}
-            class="h-full overflow-y-auto px-4 md:px-6 py-6 space-y-6 scroll-smooth"
-        >
-            <div class="max-w-4xl mx-auto">
-                {#if filteredQuestions.length === 0}
-                    <div class="text-center py-16">
-                        <div
-                            class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center"
+    <div
+        bind:this={questionsContainer}
+        class="h-screen overflow-y-auto p-2 mx-8 md:mx-12 py-3 space-y-3 scroll-smooth pb-64"
+    >
+        <div class="max-w-4xl mx-auto">
+            {#if filteredQuestions.length === 0}
+                <div class="text-center py-16">
+                    <div
+                        class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center"
+                    >
+                        <svg
+                            class="w-12 h-12 text-base-content/30"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
                         >
-                            <svg
-                                class="w-12 h-12 text-base-content/30"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                            </svg>
-                        </div>
-                        <h3
-                            class="text-xl font-semibold text-base-content mb-2"
-                        >
-                            No questions found
-                        </h3>
-                        <p class="text-base-content/60">
-                            Try adjusting your search or filter criteria.
-                        </p>
-                    </div>
-                {:else}
-                    {#each filteredQuestions as question, index (question.id)}
-                        {@const userAnswer = questionSet?.answers?.find(
-                            (a) => a.question_id === question.id,
-                        )}
-                        <div class="mb-8">
-                            <QuestionRenderer
-                                {question}
-                                questionNumber={index + 1}
-                                isActive={index === currentQuestionIndex}
-                                {userAnswer}
-                                {live}
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
-                        </div>
-                    {/each}
-                {/if}
-            </div>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-base-content mb-2">
+                        No questions found
+                    </h3>
+                    <p class="text-base-content/60">
+                        Try adjusting your search or filter criteria.
+                    </p>
+                </div>
+            {:else}
+                {#each filteredQuestions as question, index (question.id)}
+                    {@const userAnswer = questionSet?.answers?.find(
+                        (a) => a.question_id === question.id,
+                    )}
+                    <div class="mb-8">
+                        <QuestionRenderer
+                            {question}
+                            questionNumber={index + 1}
+                            isActive={index === currentQuestionIndex}
+                            {userAnswer}
+                            {live}
+                        />
+                    </div>
+                {/each}
+            {/if}
         </div>
     </div>
 </div>
