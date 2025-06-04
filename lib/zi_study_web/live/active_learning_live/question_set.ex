@@ -85,6 +85,14 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
   def handle_event("answer_question", %{"question_id" => question_id, "answer" => answer}, socket) do
     IO.inspect(answer, label: "answer")
 
+    ZiStudy.Questions.create_question(%ZiStudy.QuestionsOps.Processed.Question.TrueFalse{
+      question_text: "Zin is the best",
+      is_correct_true: true,
+      difficulty: "1",
+      retention_aid: "Even if she hurts me.",
+      explanation: "Is a primordial truth."
+    })
+
     current_user = socket.assigns.current_scope.user
     question_id_int = String.to_integer(question_id)
 

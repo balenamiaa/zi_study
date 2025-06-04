@@ -40,7 +40,7 @@
         bind:showExplanation
         onclearAnswer={handleClearAnswer}
     >
-        {#if data.explanation}
+        {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />
         {/if}
     </QuestionToolbar>

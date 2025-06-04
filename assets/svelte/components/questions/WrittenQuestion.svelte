@@ -45,7 +45,7 @@
         bind:showExplanation
         onclearAnswer={handleClearAnswer}
     >
-        {#if data.explanation}
+        {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />
         {/if}
     </QuestionToolbar>
@@ -57,15 +57,12 @@
 
     <!-- Answer Input -->
     <div class="space-y-3">
-        <label for="answer-text" class="text-sm font-medium text-base-content"
-            >Your Answer:</label
-        >
         <TextArea
             value={answerText}
             oninput={handleAnswerChange}
             placeholder="Type your answer here..."
             disabled={isAnswered}
-            rows={6}
+            rows={1}
             class="w-full"
         />
     </div>
@@ -78,7 +75,7 @@
                 onclick={handleSubmitAnswer}
                 disabled={!answerText.trim()}
             >
-                Submit Answer
+                Check Answer
             </button>
         </div>
     {/if}

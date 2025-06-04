@@ -2,6 +2,11 @@ defmodule ZiStudy.Questions.Answer do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @doc """
+  0: incorrect
+  1: correct
+  2: unevaluated
+  """
   @correct_enum [0, 1, 2]
 
   schema "answers" do

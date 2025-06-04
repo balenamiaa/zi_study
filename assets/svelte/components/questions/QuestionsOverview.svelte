@@ -37,13 +37,13 @@
 
     // Get a preview of the question text, handling cloze questions specially
     function getQuestionPreview(question) {
-        const questionText = question.data.question_text || '';
-        
-        if (question.data.question_type === 'cloze') {
+        const questionText = question.data.question_text || "";
+
+        if (question.data.question_type === "cloze") {
             // Use formatClozeForDisplay to show blanks as [___] instead of hints
             return formatClozeForDisplay(questionText, false);
         }
-        
+
         return questionText;
     }
 
@@ -182,8 +182,9 @@
                         <div
                             class="flex justify-between text-xs text-base-content/40 px-1"
                         >
+                            <!-- Ticks -->
                             {#each sliderSteps as questionNum}
-                                <span>{questionNum}</span>
+                                <span class="text-base-content/40 select-none">{questionNum}</span>
                             {/each}
                         </div>
                     </div>

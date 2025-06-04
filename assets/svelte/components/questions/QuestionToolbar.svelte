@@ -57,7 +57,7 @@
             {/if}
 
             <!-- Retention Aid -->
-            {#if retentionAid}
+            {#if retentionAid && isAnswered}
                 <div
                     class="tooltip tooltip-top flex items-center justify-center"
                     data-tip="Retention Aid"
@@ -85,9 +85,7 @@
         </div>
     </div>
 
-    <!-- Action Toolbar Context Menu -->
     {#if isAnswered}
-        <!-- Context Menu Trigger - Icon Pill -->
         <button
             style="anchor-name: --toolbar-anchor-{questionNumber}"
             popovertarget="toolbar-popover-{questionNumber}"
