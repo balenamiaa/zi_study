@@ -1,6 +1,5 @@
 <script>
     import { twMerge } from "tailwind-merge";
-    import MarkdownContent from "../MarkdownContent.svelte";
     import { formatClozeForDisplay } from "../../utils/clozeUtils.js";
 
     let {
@@ -35,16 +34,20 @@
         return num.toLocaleString();
     }
 
-    // Get a preview of the question text, handling cloze questions specially
     function getQuestionPreview(question) {
-        const questionText = question.data.question_text || "";
+        const questionType = question.data.question_type;
 
-        if (question.data.question_type === "cloze") {
-            // Use formatClozeForDisplay to show blanks as [___] instead of hints
+        if (questionType === "cloze") {
+            const questionText = question.data.question_text || "";
             return formatClozeForDisplay(questionText, false);
         }
 
-        return questionText;
+        if (questionType === "emq") {
+            // EMQ is handled separately in the template for better formatting
+            return question.data.instructions || "";
+        }
+
+        return question.data.question_text || "";
     }
 
     let sliderSteps = $derived.by(() => {
@@ -184,7 +187,9 @@
                         >
                             <!-- Ticks -->
                             {#each sliderSteps as questionNum}
-                                <span class="text-base-content/40 select-none">{questionNum}</span>
+                                <span class="text-base-content/40 select-none"
+                                    >{questionNum}</span
+                                >
                             {/each}
                         </div>
                     </div>
@@ -192,15 +197,48 @@
                     {#if filteredQuestions[currentQuestionIndex]}
                         {@const currentQuestion =
                             filteredQuestions[currentQuestionIndex]}
-                        {@const userAnswer = questionSet?.answers?.find(
-                            (a) => a.question_id === currentQuestion.id,
-                        )}
+
                         <div class="mt-4 p-3 bg-base-200 rounded-lg">
-                            <div
-                                class="text-sm text-base-content line-clamp-2 mb-2"
-                            >
-                                {getQuestionPreview(currentQuestion)}
-                            </div>
+                            {#if currentQuestion.data.question_type === "emq"}
+                                <div class="text-sm text-base-content mb-2">
+                                    <div class="font-medium mb-1">
+                                        {currentQuestion.data.instructions ||
+                                            ""}
+                                    </div>
+                                    {#if currentQuestion.data.premises?.length > 0 && currentQuestion.data.options?.length > 0}
+                                        <div
+                                            class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-base-content/70"
+                                        >
+                                            <div>
+                                                <span class="font-medium"
+                                                    >Premises:</span
+                                                >
+                                                {currentQuestion.data.premises
+                                                    .slice(0, 2)
+                                                    .join(" • ")}
+                                                {#if currentQuestion.data.premises.length > 2}•
+                                                    ...{/if}
+                                            </div>
+                                            <div>
+                                                <span class="font-medium"
+                                                    >Options:</span
+                                                >
+                                                {currentQuestion.data.options
+                                                    .slice(0, 2)
+                                                    .join(" • ")}
+                                                {#if currentQuestion.data.options.length > 2}•
+                                                    ...{/if}
+                                            </div>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {:else}
+                                <div
+                                    class="text-sm text-base-content line-clamp-2 mb-2"
+                                >
+                                    {getQuestionPreview(currentQuestion)}
+                                </div>
+                            {/if}
                             <div class="flex gap-2 items-center">
                                 {#if currentQuestion.data.difficulty}
                                     <span class="badge badge-outline badge-xs">
