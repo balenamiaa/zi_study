@@ -62,13 +62,11 @@ defmodule ZiStudyWeb.CoreComponents do
     <header
       id={@id}
       class={[
-        "fixed top-0 z-50 bg-base-100/85 backdrop-blur-md transition-all duration-300 shadow-sm",
-        @sidebar_layout && "left-0 right-0 lg:left-80",
-        !@sidebar_layout && "left-0 right-0",
+        "fixed top-0 left-0 right-0 z-50 bg-base-100/85 backdrop-blur-md transition-all duration-300 shadow-sm h-16",
         @class
       ]}
     >
-      <div class="navbar mx-auto px-4 sm:px-6 lg:px-8 py-3">
+      <div class="navbar mx-auto px-4">
         <div class="navbar-start gap-3">
           <.mobile_menu :if={@mobile_links != []} class="mr-1">
             {render_slot(@mobile_links)}

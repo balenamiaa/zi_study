@@ -1,8 +1,16 @@
 <script>
-        import MarkdownContent from "../MarkdownContent.svelte";
-    
-    let { data, userAnswer = null, submitAnswer, clearAnswer } = $props();
-    
+    import QuestionToolbar from "./QuestionToolbar.svelte";
+    import ExplanationPanel from "./ExplanationPanel.svelte";
+    import TextArea from "../TextArea.svelte";
+
+    let {
+        data,
+        userAnswer = null,
+        submitAnswer,
+        clearAnswer,
+        questionNumber,
+    } = $props();
+
     let answerText = $state(userAnswer?.data?.answer_text || "");
     let showExplanation = $state(false);
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
@@ -20,9 +28,28 @@
             answerText = event.target.value;
         }
     }
+
+    function handleClearAnswer() {
+        clearAnswer();
+    }
 </script>
 
 <div class="space-y-4">
+    <!-- Question Toolbar -->
+    <QuestionToolbar
+        {questionNumber}
+        difficulty={data.difficulty}
+        retentionAid={data.retention_aid}
+        hasExplanation={!!data.explanation}
+        {isAnswered}
+        bind:showExplanation
+        onclearAnswer={handleClearAnswer}
+    >
+        {#if data.explanation}
+            <ExplanationPanel explanation={data.explanation} />
+        {/if}
+    </QuestionToolbar>
+
     <!-- Question Text -->
     <div class="text-lg font-medium text-base-content leading-relaxed">
         {data.question_text}
@@ -30,15 +57,17 @@
 
     <!-- Answer Input -->
     <div class="space-y-3">
-        <label class="text-sm font-medium text-base-content">Your Answer:</label
+        <label for="answer-text" class="text-sm font-medium text-base-content"
+            >Your Answer:</label
         >
-        <textarea
+        <TextArea
             value={answerText}
             oninput={handleAnswerChange}
             placeholder="Type your answer here..."
-            class="textarea textarea-bordered w-full h-32 resize-none"
             disabled={isAnswered}
-        ></textarea>
+            rows={6}
+            class="w-full"
+        />
     </div>
 
     <!-- Action Buttons -->
@@ -62,7 +91,6 @@
                 <div class="flex items-start gap-2 mb-2">
                     <svg
                         class="w-4 h-4 text-primary mt-1"
-                        xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -91,7 +119,6 @@
                     <div class="flex items-start gap-2 mb-2">
                         <svg
                             class="w-4 h-4 text-success mt-1"
-                            xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -120,7 +147,6 @@
                 <div class="flex items-start gap-2">
                     <svg
                         class="w-4 h-4 text-warning mt-0.5"
-                        xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -139,45 +165,6 @@
                             your response with the model answer above.
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    {/if}
-
-    {#if isAnswered}
-        <div class="flex justify-end gap-2 mt-4">
-            {#if data.explanation}
-                <button
-                    class="btn btn-ghost btn-xs"
-                    onclick={() => (showExplanation = !showExplanation)}
-                    title="Toggle Explanation"
-                >
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </button>
-            {/if}
-            <button
-                class="btn btn-ghost btn-xs text-error"
-                onclick={clearAnswer}
-                title="Clear Answer"
-            >
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-            </button>
-        </div>
-    {/if}
-
-    {#if showExplanation && data.explanation}
-        <div class="mt-3 p-3 bg-base-100 border border-base-300 rounded-lg">
-            <div class="flex items-start gap-2">
-                <svg class="w-4 h-4 text-info mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                    <div class="text-xs font-medium text-info uppercase tracking-wide">Explanation</div>
-                    <MarkdownContent content={data.explanation} cssClass="text-sm text-base-content mt-1 prose prose-sm max-w-none" />
                 </div>
             </div>
         </div>

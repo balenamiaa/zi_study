@@ -1,6 +1,7 @@
 <script>
     import { twMerge } from "tailwind-merge";
-    import MarkdownContent from "./MarkdownContent.svelte";
+    import MarkdownContent from "../MarkdownContent.svelte";
+    import { formatClozeForDisplay } from "../../utils/clozeUtils.js";
 
     let {
         questionSet,
@@ -32,6 +33,18 @@
 
     function formatNumber(num) {
         return num.toLocaleString();
+    }
+
+    // Get a preview of the question text, handling cloze questions specially
+    function getQuestionPreview(question) {
+        const questionText = question.data.question_text || '';
+        
+        if (question.data.question_type === 'cloze') {
+            // Use formatClozeForDisplay to show blanks as [___] instead of hints
+            return formatClozeForDisplay(questionText, false);
+        }
+        
+        return questionText;
     }
 
     let sliderSteps = $derived.by(() => {
@@ -185,7 +198,7 @@
                             <div
                                 class="text-sm text-base-content line-clamp-2 mb-2"
                             >
-                                {currentQuestion.data.question_text}
+                                {getQuestionPreview(currentQuestion)}
                             </div>
                             <div class="flex gap-2 items-center">
                                 {#if currentQuestion.data.difficulty}

@@ -47,7 +47,7 @@ defmodule ZiStudyWeb.Layouts do
       </:actions>
     </.topbar>
 
-    <main class="container mx-auto px-4 py-12 sm:px-6 lg:px-8">
+    <main class="container mx-auto p-4 mt-16">
       <div class="mx-auto max-w-2xl space-y-4">
         {render_slot(@inner_block)}
       </div>
@@ -96,20 +96,20 @@ defmodule ZiStudyWeb.Layouts do
 
     <div
       id="sidebar-overlay"
-      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden opacity-0 invisible transition-all duration-300"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 opacity-0 invisible transition-all duration-300"
       onclick="closeSidebar()"
     >
     </div>
 
     <!-- Desktop Layout Container -->
-    <div class="lg:flex lg:h-screen">
-      <!-- Sidebar - Fixed overlay on mobile, static on desktop -->
+    <div class="min-h-screen mt-16">
+      <!-- Sidebar - Fixed overlay on all screen sizes -->
       <aside
         id="sidebar"
-        class="fixed top-0 left-0 h-screen w-80 bg-base-200/95 backdrop-blur-md border-r border-base-300 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl lg:relative lg:translate-x-0 lg:shadow-lg lg:bg-base-200 lg:backdrop-blur-none"
+        class="fixed top-16 left-0 h-[calc(100vh-4rem)] w-80 bg-base-200/95 backdrop-blur-md border-r border-base-300 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl"
       >
-        <div class="flex flex-col h-full pt-20">
-          <div class="px-6 py-4 border-b border-base-300/50">
+        <div class="flex flex-col h-full">
+          <div class="p-4 border-b border-base-300/50">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md">
                 <.icon name="hero-academic-cap-solid" class="size-6 text-white" />
@@ -220,19 +220,12 @@ defmodule ZiStudyWeb.Layouts do
               </a>
             </div>
           </nav>
-
-          <div class="px-6 py-4 border-t border-base-300/50">
-            <div class="flex items-center gap-3 text-sm text-base-content/70">
-              <.icon name="hero-light-bulb-mini" class="size-4" />
-              <span>Need help? Check our guides</span>
-            </div>
-          </div>
         </div>
       </aside>
 
     <!-- Main content area -->
-      <div class="flex-1 min-h-screen lg:overflow-y-auto">
-        <main class="px-4 py-12 sm:px-6 lg:px-8">
+      <div class="min-h-screen">
+        <main class="p-4 sm:px-6 lg:px-8">
           <div class="mx-auto max-w-6xl space-y-6">
             {render_slot(@inner_block)}
           </div>
@@ -243,7 +236,7 @@ defmodule ZiStudyWeb.Layouts do
     <!-- Wrapped Paper Edge - Always visible sidebar trigger -->
     <div
       id="paper-edge"
-      class="fixed top-1/2 left-0 z-30 lg:hidden cursor-pointer transform -translate-y-1/2 transition-all duration-300 hover:scale-110 group"
+      class="fixed top-1/2 left-0 z-30 cursor-pointer transform -translate-y-1/2 transition-all duration-300 hover:scale-110 group"
       onclick="openSidebar()"
     >
       <div class="w-8 h-16 bg-gradient-to-r from-base-100 to-base-200 shadow-lg border-r border-t border-b border-base-300 rounded-r-lg relative overflow-hidden">
@@ -315,12 +308,8 @@ defmodule ZiStudyWeb.Layouts do
         }
       });
 
-      window.addEventListener('resize', function() {
-        if (window.innerWidth >= 1024) {
-          closeSidebar();
-          document.body.style.overflow = '';
-        }
-      });
+      // Remove the resize listener that auto-closes sidebar on desktop
+      // since we want the sidebar to be hideable on all screen sizes
     </script>
     """
   end

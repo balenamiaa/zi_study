@@ -1,7 +1,7 @@
 <script>
-    import FilterPanel from "../components/FilterPanel.svelte";
-    import QuestionsOverview from "../components/QuestionsOverview.svelte";
-    import QuestionRenderer from "../components/QuestionRenderer.svelte";
+    import FilterPanel from "../components/questions/FilterPanel.svelte";
+    import QuestionsOverview from "../components/questions/QuestionsOverview.svelte";
+    import QuestionRenderer from "../components/questions/QuestionRenderer.svelte";
     import { SearchIcon } from "lucide-svelte";
     let { live, questionSet } = $props();
 
@@ -71,6 +71,45 @@
                 });
             }
         }
+    }
+
+    // Function to detect which question is currently in view
+    function detectCurrentQuestion() {
+        if (!questionsContainer || filteredQuestions.length === 0) return;
+
+        const containerRect = questionsContainer.getBoundingClientRect();
+        const containerMidpoint = containerRect.top + containerRect.height / 2;
+
+        const questionsWrapper = questionsContainer.children[0];
+        if (!questionsWrapper) return;
+
+        let closestIndex = 0;
+        let closestDistance = Infinity;
+
+        // Check each question element
+        for (let i = 0; i < questionsWrapper.children.length; i++) {
+            const questionElement = questionsWrapper.children[i];
+            const questionRect = questionElement.getBoundingClientRect();
+            const questionMidpoint = questionRect.top + questionRect.height / 2;
+            const distance = Math.abs(questionMidpoint - containerMidpoint);
+
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIndex = i;
+            }
+        }
+
+        // Only update if the index has changed
+        if (closestIndex !== currentQuestionIndex) {
+            currentQuestionIndex = closestIndex;
+        }
+    }
+
+    // Throttled scroll handler
+    let scrollTimeout;
+    function handleScroll() {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(detectCurrentQuestion, 100);
     }
 
     console.log("Question Set:", questionSet);
@@ -206,9 +245,11 @@
         />
     {/if}
 
+    <!-- Questions Container with improved styling and scroll detection -->
     <div
         bind:this={questionsContainer}
-        class="h-screen overflow-y-auto p-2 mx-8 md:mx-12 py-3 space-y-3 scroll-smooth pb-64"
+        onscroll={handleScroll}
+        class="h-[70vh] overflow-y-auto p-2 mx-4 md:mx-8 py-3 space-y-3 scroll-smooth pb-64 bg-primary/3 rounded-lg shadow-2xl ring-1 ring-base-300/50 backdrop-blur-sm"
     >
         <div class="max-w-4xl mx-auto">
             {#if filteredQuestions.length === 0}

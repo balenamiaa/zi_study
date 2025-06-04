@@ -1,5 +1,5 @@
 <script>
-    import QuestionSetCard from "../components/QuestionSetCard.svelte";
+    import QuestionSetCard from "../components/questions/QuestionSetCard.svelte";
     import { SearchIcon } from "lucide-svelte";
 
     let { live, questionSets } = $props();
