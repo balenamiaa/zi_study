@@ -4,6 +4,7 @@
     import TrueFalseQuestion from "./TrueFalseQuestion.svelte";
     import ClozeQuestion from "./ClozeQuestion.svelte";
     import WrittenQuestion from "./WrittenQuestion.svelte";
+    import EmqQuestion from "./EmqQuestion.svelte";
 
     let {
         question,
@@ -43,6 +44,7 @@
                 {submitAnswer}
                 {clearAnswer}
                 {questionNumber}
+                {live}
             />
         {:else if questionType === "mcq_multi"}
             <McqMultiQuestion
@@ -51,6 +53,7 @@
                 {submitAnswer}
                 {clearAnswer}
                 {questionNumber}
+                {live}
             />
         {:else if questionType === "true_false"}
             <TrueFalseQuestion
@@ -59,6 +62,7 @@
                 {submitAnswer}
                 {clearAnswer}
                 {questionNumber}
+                {live}
             />
         {:else if questionType === "cloze"}
             <ClozeQuestion
@@ -67,6 +71,7 @@
                 {submitAnswer}
                 {clearAnswer}
                 {questionNumber}
+                {live}
             />
         {:else if questionType === "written"}
             <WrittenQuestion
@@ -75,6 +80,16 @@
                 {submitAnswer}
                 {clearAnswer}
                 {questionNumber}
+                {live}
+            />
+        {:else if questionType === "emq"}
+            <EmqQuestion
+                data={question.data}
+                {userAnswer}
+                {submitAnswer}
+                {clearAnswer}
+                {questionNumber}
+                {live}
             />
         {:else}
             <div class="alert alert-warning">

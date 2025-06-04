@@ -1,7 +1,7 @@
 <script>
     import QuestionToolbar from "./QuestionToolbar.svelte";
-    import QuestionFeedback from "./QuestionFeedback.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
+    import RadioWithSpinner from "./RadioWithSpinner.svelte";
 
     let {
         data,
@@ -9,15 +9,18 @@
         submitAnswer,
         clearAnswer,
         questionNumber,
+        live,
     } = $props();
 
     let selectedAnswer = $state(userAnswer?.data?.is_true ?? null);
     let showExplanation = $state(false);
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
+    let isSubmitting = $state(false);
 
     function handleAnswerSelect(answer) {
-        if (!isAnswered) {
+        if (!isAnswered && !isSubmitting) {
             selectedAnswer = answer;
+            isSubmitting = true;
             submitAnswer({
                 is_true: answer,
             });
@@ -27,6 +30,41 @@
     function handleClearAnswer() {
         clearAnswer();
     }
+
+    // Listen for backend events
+    $effect(() => {
+        if (live) {
+            const handleAnswerSubmitted = () => {
+                isSubmitting = false;
+            };
+
+            const handleAnswerReset = (payload) => {
+                const eventQuestionId = payload.question_id;
+                const currentQuestionId = data?.id?.toString() || questionNumber?.toString();
+                if (eventQuestionId === currentQuestionId) {
+                    selectedAnswer = null;
+                    isSubmitting = false;
+                }
+            };
+
+            live.handleEvent("answer_submitted", handleAnswerSubmitted);
+            live.handleEvent("answer_reset", handleAnswerReset);
+
+            return () => {
+                if (live) {
+                    live.removeHandleEvent("answer_submitted", handleAnswerSubmitted);
+                    live.removeHandleEvent("answer_reset", handleAnswerReset);
+                }
+            };
+        }
+    });
+
+    // Reset submitting state when answer is received
+    $effect(() => {
+        if (userAnswer) {
+            isSubmitting = false;
+        }
+    });
 </script>
 
 <div class="space-y-4">
@@ -53,23 +91,32 @@
     <!-- Answer Options -->
     <div class="space-y-3">
         <label
-            class="flex items-start gap-3 p-4 rounded-lg border border-base-300 transition-all duration-200 {selectedAnswer ===
-            true
-                ? 'border-primary bg-primary/5'
-                : isAnswered
-                  ? ''
-                  : 'hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered
-                ? 'cursor-default'
-                : 'cursor-pointer'}"
+            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {
+                isAnswered && data.is_correct_true && selectedAnswer === true
+                    ? 'border-success bg-success/10'
+                    : isAnswered && !data.is_correct_true && selectedAnswer === true
+                    ? 'border-error bg-error/10'
+                    : selectedAnswer === true
+                    ? 'border-primary bg-primary/5'
+                    : isAnswered || isSubmitting
+                    ? 'border-base-300'
+                    : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'
+            } {
+                isAnswered || isSubmitting ? 'cursor-default' : 'cursor-pointer'
+            }"
         >
-            <input
-                type="radio"
-                name="true-false-option"
+            <RadioWithSpinner
+                name="true-false-option-{questionNumber}"
                 value={true}
                 checked={selectedAnswer === true}
                 onchange={() => handleAnswerSelect(true)}
-                disabled={isAnswered}
-                class="radio radio-primary mt-1"
+                disabled={isAnswered || isSubmitting}
+                showSpinner={isSubmitting && selectedAnswer === true}
+                variant={isAnswered && data.is_correct_true 
+                    ? 'success' 
+                    : isAnswered && selectedAnswer === true && !data.is_correct_true 
+                    ? 'error' 
+                    : 'primary'}
             />
             <div class="flex-1">
                 <div class="flex items-center gap-3">
@@ -78,29 +125,53 @@
                     >
                         T
                     </div>
-                    <span class="text-base-content font-medium">True</span>
+                    <span class="text-base-content font-medium {
+                        isAnswered && data.is_correct_true 
+                            ? 'text-success' 
+                            : isAnswered && selectedAnswer === true && !data.is_correct_true 
+                            ? 'text-error' 
+                            : ''
+                    }">True</span>
+                    {#if isAnswered && data.is_correct_true}
+                        <svg class="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    {:else if isAnswered && selectedAnswer === true && !data.is_correct_true}
+                        <svg class="w-4 h-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    {/if}
                 </div>
             </div>
         </label>
 
         <label
-            class="flex items-start gap-3 p-4 rounded-lg border border-base-300 transition-all duration-200 {selectedAnswer ===
-            false
-                ? 'border-primary bg-primary/5'
-                : isAnswered
-                  ? ''
-                  : 'hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered
-                ? 'cursor-default'
-                : 'cursor-pointer'}"
+            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {
+                isAnswered && !data.is_correct_true && selectedAnswer === false
+                    ? 'border-success bg-success/10'
+                    : isAnswered && data.is_correct_true && selectedAnswer === false
+                    ? 'border-error bg-error/10'
+                    : selectedAnswer === false
+                    ? 'border-primary bg-primary/5'
+                    : isAnswered || isSubmitting
+                    ? 'border-base-300'
+                    : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'
+            } {
+                isAnswered || isSubmitting ? 'cursor-default' : 'cursor-pointer'
+            }"
         >
-            <input
-                type="radio"
-                name="true-false-option"
+            <RadioWithSpinner
+                name="true-false-option-{questionNumber}"
                 value={false}
                 checked={selectedAnswer === false}
                 onchange={() => handleAnswerSelect(false)}
-                disabled={isAnswered}
-                class="radio radio-primary mt-1"
+                disabled={isAnswered || isSubmitting}
+                showSpinner={isSubmitting && selectedAnswer === false}
+                variant={isAnswered && !data.is_correct_true 
+                    ? 'success' 
+                    : isAnswered && selectedAnswer === false && data.is_correct_true 
+                    ? 'error' 
+                    : 'primary'}
             />
             <div class="flex-1">
                 <div class="flex items-center gap-3">
@@ -109,24 +180,24 @@
                     >
                         F
                     </div>
-                    <span class="text-base-content font-medium">False</span>
+                    <span class="text-base-content font-medium {
+                        isAnswered && !data.is_correct_true 
+                            ? 'text-success' 
+                            : isAnswered && selectedAnswer === false && data.is_correct_true 
+                            ? 'text-error' 
+                            : ''
+                    }">False</span>
+                    {#if isAnswered && !data.is_correct_true}
+                        <svg class="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    {:else if isAnswered && selectedAnswer === false && data.is_correct_true}
+                        <svg class="w-4 h-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    {/if}
                 </div>
             </div>
         </label>
     </div>
-
-    <!-- Answer Feedback -->
-    {#if isAnswered && selectedAnswer !== null}
-        {@const isCorrect = userAnswer?.is_correct === 1}
-
-        <QuestionFeedback
-            {isCorrect}
-            userResponse={selectedAnswer ? "True" : "False"}
-            correctResponse={!isCorrect
-                ? data.is_correct_true
-                    ? "True"
-                    : "False"
-                : null}
-        />
-    {/if}
 </div>

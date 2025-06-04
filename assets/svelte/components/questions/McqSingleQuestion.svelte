@@ -1,7 +1,7 @@
 <script>
     import QuestionToolbar from "./QuestionToolbar.svelte";
-    import QuestionFeedback from "./QuestionFeedback.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
+    import RadioWithSpinner from "./RadioWithSpinner.svelte";
 
     let {
         data,
@@ -9,15 +9,18 @@
         submitAnswer,
         clearAnswer,
         questionNumber,
+        live,
     } = $props();
 
     let selectedOption = $state(userAnswer?.data?.selected_index ?? null);
     let showExplanation = $state(false);
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
+    let isSubmitting = $state(false);
 
     function handleOptionSelect(index) {
-        if (!isAnswered) {
+        if (!isAnswered && !isSubmitting) {
             selectedOption = index;
+            isSubmitting = true;
             submitAnswer({
                 selected_index: index,
             });
@@ -27,6 +30,42 @@
     function handleClearAnswer() {
         clearAnswer();
     }
+
+    // Listen for backend events
+    $effect(() => {
+        if (live) {
+            const handleAnswerSubmitted = () => {
+                isSubmitting = false;
+            };
+
+            const handleAnswerReset = (payload) => {
+                const eventQuestionId = payload.question_id;
+                const currentQuestionId =
+                    data?.id?.toString() || questionNumber?.toString();
+                if (eventQuestionId === currentQuestionId) {
+                    selectedOption = null;
+                    isSubmitting = false;
+                }
+            };
+
+            live.handleEvent("answer_submitted", handleAnswerSubmitted);
+            live.handleEvent("answer_reset", handleAnswerReset);
+
+            return () => {
+                if (live) {
+                    live.removeHandleEvent("answer_submitted", handleAnswerSubmitted);
+                    live.removeHandleEvent("answer_reset", handleAnswerReset);
+                }
+            };
+        }
+    });
+
+    // Reset submitting state when answer is received
+    $effect(() => {
+        if (userAnswer) {
+            isSubmitting = false;
+        }
+    });
 </script>
 
 <div class="space-y-4">
@@ -53,42 +92,114 @@
     <!-- Options -->
     <div class="space-y-3">
         {#each data.options as option, index}
+            {@const isSelected = selectedOption === index}
+            {@const isCorrect = isAnswered && userAnswer?.is_correct === 1}
+            {@const isIncorrect = isAnswered && userAnswer?.is_correct === 0}
+            {@const isCorrectOption =
+                isAnswered && index === data.correct_index}
+            {@const showAsCorrect = isAnswered && isCorrectOption}
+            {@const showAsIncorrect =
+                isAnswered && isSelected && !isCorrectOption}
+
             <label
-                class="flex items-start gap-3 p-3 rounded-lg border border-base-300 transition-all duration-200 {selectedOption ===
-                index
-                    ? 'border-primary bg-primary/5'
-                    : isAnswered
-                      ? ''
-                      : 'hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered
+                class="flex items-start gap-3 p-3 rounded-lg border transition-all duration-200 {showAsCorrect
+                    ? 'border-success bg-success/10'
+                    : showAsIncorrect
+                      ? 'border-error bg-error/10'
+                      : isSelected
+                        ? 'border-primary bg-primary/5'
+                        : isAnswered || isSubmitting
+                          ? 'border-base-300'
+                          : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered ||
+                isSubmitting
                     ? 'cursor-default'
                     : 'cursor-pointer'}"
             >
-                <input
-                    type="radio"
-                    name="mcq-single-option"
+                <RadioWithSpinner
+                    name="mcq-single-option-{questionNumber}"
                     value={index}
-                    checked={selectedOption === index}
+                    checked={isSelected}
                     onchange={() => handleOptionSelect(index)}
-                    disabled={isAnswered}
-                    class="radio radio-primary mt-1"
+                    disabled={isAnswered || isSubmitting}
+                    showSpinner={isSubmitting && isSelected}
+                    variant={showAsCorrect
+                        ? 'success'
+                        : showAsIncorrect
+                          ? 'error'
+                          : 'primary'}
                 />
                 <div class="flex-1">
-                    <span class="text-base-content">{option}</span>
+                    <span
+                        class="text-base-content {showAsCorrect
+                            ? 'text-success font-medium'
+                            : showAsIncorrect
+                              ? 'text-error'
+                              : ''}">{option}</span
+                    >
+                    {#if showAsCorrect}
+                        <div class="flex items-center gap-1 mt-1">
+                            <svg
+                                class="w-4 h-4 text-success"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 13l4 4L19 7"
+                                />
+                            </svg>
+                            <span class="text-xs text-success font-medium"
+                                >Correct</span
+                            >
+                        </div>
+                    {:else if showAsIncorrect}
+                        <div class="flex items-center gap-1 mt-1">
+                            <svg
+                                class="w-4 h-4 text-error"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                            <span class="text-xs text-error font-medium"
+                                >Your answer</span
+                            >
+                        </div>
+                    {/if}
                 </div>
             </label>
         {/each}
     </div>
 
-    <!-- Answer Feedback -->
-    {#if isAnswered && selectedOption !== null}
-        {@const isCorrect = userAnswer?.is_correct === 1}
-
-        <QuestionFeedback
-            {isCorrect}
-            userResponse={data.options[selectedOption]}
-            correctResponse={!isCorrect
-                ? data.options[data.correct_index]
-                : null}
-        />
+    {#if isAnswered && userAnswer?.is_correct === 0}
+        <div class="p-3 bg-info/10 border border-info/20 rounded-lg">
+            <div class="flex items-center gap-2">
+                <svg
+                    class="w-4 h-4 text-info"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                </svg>
+                <span class="text-sm font-medium text-info"
+                    >The correct answer is highlighted above</span
+                >
+            </div>
+        </div>
     {/if}
 </div>

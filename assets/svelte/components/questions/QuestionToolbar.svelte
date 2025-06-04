@@ -13,7 +13,6 @@
 
     function toggleExplanation() {
         showExplanation = !showExplanation;
-        // Close popover
         const popover = document.getElementById(
             `toolbar-popover-${questionNumber}`,
         );
@@ -24,7 +23,6 @@
         if (onclearAnswer) {
             onclearAnswer();
         }
-        // Close popover
         const popover = document.getElementById(
             `toolbar-popover-${questionNumber}`,
         );

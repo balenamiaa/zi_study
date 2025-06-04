@@ -111,8 +111,6 @@
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(detectCurrentQuestion, 100);
     }
-
-    console.log("Question Set:", questionSet);
 </script>
 
 <div class="min-h-screen bg-base-100 flex flex-col gap-4">

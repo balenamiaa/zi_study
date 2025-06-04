@@ -1,19 +1,17 @@
-@import "tailwindcss";
-@source "../svelte/**/*.svelte";
-@source "../../lib/**/*.{ex,heex}";
+@import "tailwindcss" source(none);
+@source "../**/*.{svelte,js}";
+@source "../../lib/**/*.{ex,heex,js}";
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
-/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
-   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
-   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
-@plugin "../vendor/daisyui" {
+
+@plugin "daisyui" {
   themes: light --default, dark --prefersdark;
 }
 
-@plugin "../vendor/daisyui-theme" {
+@plugin "daisyui/theme" {
   name: "dark";
   default: true;
   prefersdark: true;

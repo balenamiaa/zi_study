@@ -5,7 +5,7 @@
     let completionPercentage = $derived.by(() => {
         const total = questionSet.stats.total_answers;
         if (total === 0) return 0;
-        return Math.round((total / (questionSet.questions?.length || 1)) * 100);
+        return Math.round((total / (questionSet.num_questions || 1)) * 100);
     });
 
     // Calculate accuracy percentage
