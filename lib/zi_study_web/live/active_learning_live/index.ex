@@ -5,13 +5,13 @@ defmodule ZiStudyWeb.ActiveLearningLive.Index do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.active_learning flash={@flash} current_scope={@current_scope}>
       <.svelte
         name="pages/ActiveLearningIndex"
         socket={@socket}
         props={%{questionSets: @question_sets}}
       />
-    </Layouts.app>
+    </Layouts.active_learning>
     """
   end
 

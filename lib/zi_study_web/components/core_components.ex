@@ -41,6 +41,7 @@ defmodule ZiStudyWeb.CoreComponents do
   attr :logout_path, :string, default: "/users/log-out"
   attr :login_path, :string, default: "/users/log-in"
   attr :register_path, :string, default: "/users/register"
+  attr :sidebar_layout, :boolean, default: false
 
   slot :logo_src, required: true
   slot :logo_text
@@ -61,7 +62,9 @@ defmodule ZiStudyWeb.CoreComponents do
     <header
       id={@id}
       class={[
-        "fixed top-0 left-0 right-0 z-50 bg-base-100/85 backdrop-blur-md transition-all duration-300 shadow-sm",
+        "fixed top-0 z-50 bg-base-100/85 backdrop-blur-md transition-all duration-300 shadow-sm",
+        @sidebar_layout && "left-0 right-0 lg:left-80",
+        !@sidebar_layout && "left-0 right-0",
         @class
       ]}
     >

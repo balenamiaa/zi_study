@@ -13,13 +13,13 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.active_learning flash={@flash} current_scope={@current_scope}>
       <.svelte
         name="pages/ActiveLearningQuestionSet"
         socket={@socket}
         props={%{questionSet: @question_set}}
       />
-    </Layouts.app>
+    </Layouts.active_learning>
     """
   end
 
