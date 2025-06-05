@@ -137,58 +137,71 @@ defmodule ZiStudy.QuestionsOps.Processed do
       case answer_type do
         "mcq_single" ->
           selected_index = normalized_data["selected_index"]
+
           if is_nil(selected_index) do
             raise ArgumentError, "MCQ single answer requires selected_index"
           end
+
           %McqSingleAnswer{
             selected_index: selected_index
           }
 
         "mcq_multi" ->
           selected_indices = normalized_data["selected_indices"]
+
           if is_nil(selected_indices) do
             raise ArgumentError, "MCQ multi answer requires selected_indices"
           end
+
           %McqMultiAnswer{
             selected_indices: selected_indices
           }
 
         "written" ->
           text = normalized_data["text"] || normalized_data["answer_text"]
+
           if is_nil(text) do
             raise ArgumentError, "Written answer requires text or answer_text"
           end
+
           %WrittenAnswer{
             text: text
           }
 
         "true_false" ->
-          selected = if Map.has_key?(normalized_data, "selected") do
-            normalized_data["selected"]
-          else
-            normalized_data["is_true"]
-          end
+          selected =
+            if Map.has_key?(normalized_data, "selected") do
+              normalized_data["selected"]
+            else
+              normalized_data["is_true"]
+            end
+
           if is_nil(selected) do
             raise ArgumentError, "True/false answer requires selected or is_true"
           end
+
           %TrueFalseAnswer{
             selected: selected
           }
 
         "cloze" ->
           answers = normalized_data["answers"]
+
           if is_nil(answers) do
             raise ArgumentError, "Cloze answer requires answers"
           end
+
           %ClozeAnswer{
             answers: answers
           }
 
         "emq" ->
           matches = normalized_data["matches"]
+
           if is_nil(matches) do
             raise ArgumentError, "EMQ answer requires matches"
           end
+
           %EmqAnswer{
             matches: matches
           }

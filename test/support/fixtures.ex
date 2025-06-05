@@ -56,12 +56,13 @@ defmodule ZiStudy.Fixtures do
   """
   def question_set_fixture(user \\ nil, attrs \\ %{}) do
     # Normalize attrs keys to strings for consistency with valid_question_set_attributes
-    normalized_attrs = for {key, value} <- attrs, into: %{} do
-      case key do
-        key when is_atom(key) -> {to_string(key), value}
-        key when is_binary(key) -> {key, value}
+    normalized_attrs =
+      for {key, value} <- attrs, into: %{} do
+        case key do
+          key when is_atom(key) -> {to_string(key), value}
+          key when is_binary(key) -> {key, value}
+        end
       end
-    end
 
     case user do
       nil ->
@@ -69,6 +70,7 @@ defmodule ZiStudy.Fixtures do
           normalized_attrs
           |> valid_question_set_attributes()
           |> Questions.create_question_set_ownerless()
+
         question_set
 
       user ->
@@ -76,6 +78,7 @@ defmodule ZiStudy.Fixtures do
           normalized_attrs
           |> valid_question_set_attributes()
           |> then(&Questions.create_question_set(user, &1))
+
         question_set
     end
   end
@@ -187,14 +190,15 @@ defmodule ZiStudy.Fixtures do
   Create a question for testing.
   """
   def question_fixture(type \\ :mcq_single, attrs \\ %{}) do
-    base_data = case type do
-      :mcq_single -> mcq_single_question_data()
-      :mcq_multi -> mcq_multi_question_data()
-      :true_false -> true_false_question_data()
-      :written -> written_question_data()
-      :cloze -> cloze_question_data()
-      :emq -> emq_question_data()
-    end
+    base_data =
+      case type do
+        :mcq_single -> mcq_single_question_data()
+        :mcq_multi -> mcq_multi_question_data()
+        :true_false -> true_false_question_data()
+        :written -> written_question_data()
+        :cloze -> cloze_question_data()
+        :emq -> emq_question_data()
+      end
 
     data = Map.merge(base_data, attrs)
     processed_content = Processed.Question.from_map(data)
@@ -207,21 +211,23 @@ defmodule ZiStudy.Fixtures do
   Generate answer attributes.
   """
   def valid_answer_attributes(user, question, attrs \\ %{}) do
-    base_data = case question.type do
-      "mcq_single" -> %{"selected_index" => 1}
-      "mcq_multi" -> %{"selected_indices" => [0, 1]}
-      "true_false" -> %{"selected" => true}
-      "written" -> %{"answer_text" => "Sample written answer"}
-      "cloze" -> %{"answers" => ["Paris", "Europe"]}
-      "emq" -> %{"matches" => [[0, 0], [1, 1]]}
-      _ -> %{"generic_answer" => "test"}
-    end
+    base_data =
+      case question.type do
+        "mcq_single" -> %{"selected_index" => 1}
+        "mcq_multi" -> %{"selected_indices" => [0, 1]}
+        "true_false" -> %{"selected" => true}
+        "written" -> %{"answer_text" => "Sample written answer"}
+        "cloze" -> %{"answers" => ["Paris", "Europe"]}
+        "emq" -> %{"matches" => [[0, 0], [1, 1]]}
+        _ -> %{"generic_answer" => "test"}
+      end
 
     Enum.into(attrs, %{
       user_id: user.id,
       question_id: question.id,
       data: Map.merge(base_data, Map.get(attrs, :data, %{})),
-      is_correct: 2  # unevaluated by default
+      # unevaluated by default
+      is_correct: 2
     })
   end
 
@@ -241,24 +247,31 @@ defmodule ZiStudy.Fixtures do
   Create a correct answer for testing.
   """
   def correct_answer_fixture(user, question, attrs \\ %{}) do
-    correct_data = case question.type do
-      "mcq_single" ->
-        correct_index = question.data["correct_index"]
-        %{"selected_index" => correct_index}
-      "mcq_multi" ->
-        correct_indices = question.data["correct_indices"]
-        %{"selected_indices" => correct_indices}
-      "true_false" ->
-        correct = question.data["is_correct_true"]
-        %{"selected" => correct}
-      "cloze" ->
-        correct_answers = question.data["answers"]
-        %{"answers" => correct_answers}
-      "emq" ->
-        correct_matches = question.data["matches"]
-        %{"matches" => correct_matches}
-      _ -> %{}
-    end
+    correct_data =
+      case question.type do
+        "mcq_single" ->
+          correct_index = question.data["correct_index"]
+          %{"selected_index" => correct_index}
+
+        "mcq_multi" ->
+          correct_indices = question.data["correct_indices"]
+          %{"selected_indices" => correct_indices}
+
+        "true_false" ->
+          correct = question.data["is_correct_true"]
+          %{"selected" => correct}
+
+        "cloze" ->
+          correct_answers = question.data["answers"]
+          %{"answers" => correct_answers}
+
+        "emq" ->
+          correct_matches = question.data["matches"]
+          %{"matches" => correct_matches}
+
+        _ ->
+          %{}
+      end
 
     attrs_with_correct_data = Map.put(attrs, :data, correct_data)
     answer_fixture(user, question, attrs_with_correct_data)
@@ -268,22 +281,31 @@ defmodule ZiStudy.Fixtures do
   Create an incorrect answer for testing.
   """
   def incorrect_answer_fixture(user, question, attrs \\ %{}) do
-    incorrect_data = case question.type do
-      "mcq_single" ->
-        correct_index = question.data["correct_index"]
-        wrong_index = if correct_index == 0, do: 1, else: 0
-        %{"selected_index" => wrong_index}
-      "mcq_multi" ->
-        %{"selected_indices" => [0]}  # Assuming this is wrong
-      "true_false" ->
-        correct = question.data["is_correct_true"]
-        %{"selected" => not correct}
-      "cloze" ->
-        %{"answers" => ["Wrong", "Answer"]}
-      "emq" ->
-        %{"matches" => [[0, 1], [1, 0]]}  # Swapped matches
-      _ -> %{"wrong" => "answer"}
-    end
+    incorrect_data =
+      case question.type do
+        "mcq_single" ->
+          correct_index = question.data["correct_index"]
+          wrong_index = if correct_index == 0, do: 1, else: 0
+          %{"selected_index" => wrong_index}
+
+        "mcq_multi" ->
+          # Assuming this is wrong
+          %{"selected_indices" => [0]}
+
+        "true_false" ->
+          correct = question.data["is_correct_true"]
+          %{"selected" => not correct}
+
+        "cloze" ->
+          %{"answers" => ["Wrong", "Answer"]}
+
+        "emq" ->
+          # Swapped matches
+          %{"matches" => [[0, 1], [1, 0]]}
+
+        _ ->
+          %{"wrong" => "answer"}
+      end
 
     attrs_with_incorrect_data = Map.put(attrs, :data, incorrect_data)
     answer_fixture(user, question, attrs_with_incorrect_data)

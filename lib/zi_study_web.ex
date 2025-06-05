@@ -86,7 +86,7 @@ defmodule ZiStudyWeb do
       import Phoenix.HTML
       # Core UI components
       import ZiStudyWeb.CoreComponents
-    # LiveSvelte
+      # LiveSvelte
       import LiveSvelte
 
       # Common modules used in templates

@@ -1,11 +1,20 @@
 <script>
-    import { SearchIcon, PlusIcon, TrashIcon, EditIcon } from "lucide-svelte";
+    import {
+        SearchIcon,
+        PlusIcon,
+        TrashIcon,
+        EditIcon,
+        FilterIcon,
+        XIcon,
+        TagIcon,
+        UserIcon,
+    } from "lucide-svelte";
     import QuestionSetCard from "../components/questions/QuestionSetCard.svelte";
     import Button from "../components/Button.svelte";
     import TextInput from "../components/TextInput.svelte";
     import Modal from "../components/Modal.svelte";
 
-    let { live, questionSets } = $props();
+    let { live, questionSets, availableTags } = $props();
 
     let searchQuery = $state("");
     let isEditMode = $state(false);
@@ -14,17 +23,43 @@
     let newSetTitle = $state("");
     let newSetDescription = $state("");
     let newSetIsPrivate = $state(true);
+    let showFilters = $state(false);
+    let selectedTags = $state(new Set());
+    let ownedOnly = $state(false);
+    let tagSearch = $state("");
 
-    let filteredQuestionSets = $derived(
-        questionSets?.filter(
-            (qs) =>
-                qs.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                qs.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                qs.tags.some((tag) =>
-                    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
-                )
-        ) || []
+    let filteredAvailableTags = $derived(
+        availableTags?.filter((tag) =>
+            tag.name.toLowerCase().includes(tagSearch.toLowerCase()),
+        ) || [],
     );
+
+    let filteredQuestionSets = $derived.by(() => {
+        if (!questionSets) return [];
+
+        return questionSets.filter((qs) => {
+            // Text search
+            const matchesSearch =
+                searchQuery === "" ||
+                qs.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                qs.description
+                    ?.toLowerCase()
+                    .includes(searchQuery.toLowerCase()) ||
+                qs.tags.some((tag) =>
+                    tag.name.toLowerCase().includes(searchQuery.toLowerCase()),
+                );
+
+            // Tag filter
+            const matchesTags =
+                selectedTags.size === 0 ||
+                qs.tags.some((tag) => selectedTags.has(tag.id));
+
+            // Ownership filter
+            const matchesOwnership = !ownedOnly || qs.owner !== null;
+
+            return matchesSearch && matchesTags && matchesOwnership;
+        });
+    });
 
     function toggleEditMode() {
         isEditMode = !isEditMode;
@@ -43,7 +78,9 @@
     }
 
     function selectAll() {
-        const ownedSets = filteredQuestionSets.filter((qs) => qs.owner !== null);
+        const ownedSets = filteredQuestionSets.filter(
+            (qs) => qs.owner !== null,
+        );
         ownedSets.forEach((qs) => selectedSetIds.add(qs.id));
         selectedSetIds = new Set(selectedSetIds);
     }
@@ -88,71 +125,266 @@
 
         closeCreateModal();
     }
+
+    function toggleTagFilter(tagId) {
+        if (selectedTags.has(tagId)) {
+            selectedTags.delete(tagId);
+        } else {
+            selectedTags.add(tagId);
+        }
+        selectedTags = new Set(selectedTags);
+    }
+
+    function clearAllFilters() {
+        selectedTags.clear();
+        selectedTags = new Set(selectedTags);
+        ownedOnly = false;
+        tagSearch = "";
+    }
+
+    let activeFiltersCount = $derived(selectedTags.size + (ownedOnly ? 1 : 0));
 </script>
 
 <div class="min-h-screen bg-base-100 p-4 md:p-6 lg:p-8">
     <div class="max-w-7xl mx-auto">
-        <div class="mb-8">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h1 class="text-4xl font-bold text-base-content mb-2">
-                        Question Sets
-                    </h1>
-                    <p class="text-base-content/70 text-lg">
-                        Discover and practice with our collection of question sets
-                    </p>
-                </div>
+        <!-- Header Section -->
+        <div class="mb-8 relative">
+            <!-- Action buttons positioned absolutely on mobile -->
+            <div
+                class="absolute top-0 right-0 flex flex-col sm:flex-row gap-2 z-10"
+            >
+                <Button
+                    variant="primary"
+                    onclick={openCreateModal}
+                    class="btn-sm gap-2"
+                >
+                    <PlusIcon class="h-4 w-4" />
+                    <span class="hidden sm:inline">Create Set</span>
+                </Button>
 
-                <div class="flex items-center gap-2">
-                    <Button variant="primary" onclick={openCreateModal} class="gap-2">
-                        <PlusIcon class="h-4 w-4" />
-                        Create Set
-                    </Button>
-
-                    <Button
-                        variant={isEditMode ? "error" : "outline"}
-                        onclick={toggleEditMode}
-                        class="gap-2"
+                <Button
+                    variant={isEditMode ? "error" : "outline"}
+                    onclick={toggleEditMode}
+                    class="btn-sm gap-2"
+                >
+                    <EditIcon class="h-4 w-4" />
+                    <span class="hidden sm:inline"
+                        >{isEditMode ? "Exit Edit" : "Edit Mode"}</span
                     >
-                        <EditIcon class="h-4 w-4" />
-                        {isEditMode ? "Exit Edit" : "Edit Mode"}
-                    </Button>
-                </div>
+                </Button>
+            </div>
+
+            <!-- Title and description with right padding for buttons -->
+            <div class="pr-24 sm:pr-0">
+                <h1
+                    class="text-3xl sm:text-4xl font-bold text-base-content mb-2"
+                >
+                    Question Sets
+                </h1>
+                <p class="text-base-content/70 text-base sm:text-lg">
+                    Discover and practice with our collection of question sets
+                </p>
             </div>
         </div>
 
+        <!-- Search and Filters Section -->
         <div class="mb-8 space-y-4">
-            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                <label for="search" class="input relative flex-1 max-w-md">
-                    <SearchIcon class="h-5 w-5" />
-                    <input
-                        type="search"
-                        bind:value={searchQuery}
-                        placeholder="Search question sets..."
-                        class="grow"
-                    />
-                </label>
+            <div
+                class="flex flex-col lg:flex-row gap-4 items-start lg:items-center"
+            >
+                <!-- Search Input -->
+                <div class="flex-1 w-full lg:max-w-lg">
+                    <label for="search" class="input input-lg relative w-full">
+                        <SearchIcon class="h-5 w-5" />
+                        <input
+                            type="search"
+                            bind:value={searchQuery}
+                            placeholder="Search question sets..."
+                            class="grow text-base"
+                        />
+                    </label>
+                </div>
 
-                <div class="flex items-center gap-2 text-base-content/70">
-                    <span class="text-sm">
-                        {filteredQuestionSets.length} of {questionSets?.length || 0} sets
-                    </span>
+                <!-- Filters and Results -->
+                <div
+                    class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto"
+                >
+                    <button
+                        class="btn btn-outline gap-2 w-full sm:w-auto"
+                        onclick={() => (showFilters = !showFilters)}
+                    >
+                        <FilterIcon class="h-4 w-4" />
+                        Filters
+                        {#if activeFiltersCount > 0}
+                            <span class="badge badge-primary badge-sm"
+                                >{activeFiltersCount}</span
+                            >
+                        {/if}
+                        {#if showFilters}
+                            <svg
+                                class="w-4 h-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 15l7-7 7 7"
+                                />
+                            </svg>
+                        {:else}
+                            <svg
+                                class="w-4 h-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M19 9l-7 7-7-7"
+                                />
+                            </svg>
+                        {/if}
+                    </button>
+
+                    <div class="text-sm text-base-content/70 whitespace-nowrap">
+                        {filteredQuestionSets.length} of {questionSets?.length ||
+                            0} sets
+                    </div>
                 </div>
             </div>
 
+            <!-- Filters Panel -->
+            {#if showFilters}
+                <div
+                    class="bg-base-200 rounded-lg p-4 border border-base-300 space-y-4"
+                >
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-base-content">
+                            Filters
+                        </h3>
+                        {#if activeFiltersCount > 0}
+                            <button
+                                class="btn btn-ghost btn-sm gap-2"
+                                onclick={clearAllFilters}
+                            >
+                                <XIcon class="h-4 w-4" />
+                                Clear All
+                            </button>
+                        {/if}
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Tags Filter -->
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2">
+                                <TagIcon class="h-4 w-4 text-base-content/70" />
+                                <span class="font-medium text-base-content"
+                                    >Tags</span
+                                >
+                                {#if selectedTags.size > 0}
+                                    <span class="badge badge-primary badge-sm"
+                                        >{selectedTags.size}</span
+                                    >
+                                {/if}
+                            </div>
+
+                            <div class="space-y-2">
+                                <input
+                                    type="search"
+                                    bind:value={tagSearch}
+                                    placeholder="Search tags..."
+                                    class="input input-sm input-bordered w-full"
+                                />
+
+                                <div class="max-h-32 overflow-y-auto">
+                                    <div class="flex flex-wrap gap-2 p-1">
+                                        {#each filteredAvailableTags as tag (tag.id)}
+                                            <button
+                                                class="px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 border min-h-8 whitespace-nowrap hover:-translate-y-0.5 {selectedTags.has(
+                                                    tag.id,
+                                                )
+                                                    ? 'bg-primary text-primary-content border-primary shadow-md'
+                                                    : 'bg-base-200 text-base-content/70 border-base-300 hover:bg-primary/10 hover:text-primary hover:border-primary/30 shadow-sm'}"
+                                                onclick={() =>
+                                                    toggleTagFilter(tag.id)}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        {:else}
+                                            <div
+                                                class="text-sm text-base-content/50 italic py-2 w-full text-center"
+                                            >
+                                                {tagSearch
+                                                    ? "No tags found"
+                                                    : "No tags available"}
+                                            </div>
+                                        {/each}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ownership Filter -->
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2">
+                                <UserIcon
+                                    class="h-4 w-4 text-base-content/70"
+                                />
+                                <span class="font-medium text-base-content"
+                                    >Ownership</span
+                                >
+                            </div>
+
+                            <label
+                                class="cursor-pointer label justify-start gap-3"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={ownedOnly}
+                                    class="checkbox checkbox-primary"
+                                />
+                                <span class="label-text"
+                                    >Show only sets I own</span
+                                >
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Edit Mode Panel -->
             {#if isEditMode}
-                <div class="bg-warning/10 border border-warning/30 rounded-lg p-4">
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div
+                    class="bg-warning/10 border border-warning/30 rounded-lg p-4"
+                >
+                    <div
+                        class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                    >
                         <div class="flex items-center gap-4">
                             <span class="text-sm font-medium text-base-content">
                                 {selectedSetIds.size} set(s) selected
                             </span>
 
                             <div class="flex gap-2">
-                                <Button variant="outline" size="xs" onclick={selectAll}>
+                                <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onclick={selectAll}
+                                >
                                     Select All Owned
                                 </Button>
-                                <Button variant="ghost" size="xs" onclick={clearSelection}>
+                                <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    onclick={clearSelection}
+                                >
                                     Clear
                                 </Button>
                             </div>
@@ -175,9 +407,12 @@
             {/if}
         </div>
 
+        <!-- Question Sets Grid -->
         {#if filteredQuestionSets.length === 0}
             <div class="text-center py-16">
-                <div class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center">
+                <div
+                    class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center"
+                >
                     <svg
                         class="w-12 h-12 text-base-content/30"
                         xmlns="http://www.w3.org/2000/svg"
@@ -197,27 +432,42 @@
                     No question sets found
                 </h3>
                 <p class="text-base-content/60">
-                    Try adjusting your search or check back later for new content.
+                    {activeFiltersCount > 0
+                        ? "Try adjusting your filters or search criteria."
+                        : "Try adjusting your search or check back later for new content."}
                 </p>
             </div>
         {:else}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div
+                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            >
                 {#each filteredQuestionSets as questionSet (questionSet.id)}
                     {@const isSelected = selectedSetIds.has(questionSet.id)}
                     {@const canSelect = questionSet.owner !== null}
 
                     <div
-                        class="h-full transition-all duration-200 {isEditMode && !canSelect
+                        class="h-full transition-all duration-200 {isEditMode &&
+                        !canSelect
                             ? 'opacity-50'
                             : ''} {isEditMode && canSelect
                             ? 'cursor-pointer'
                             : ''}"
-                        onclick={() => isEditMode && canSelect && toggleSetSelection(questionSet.id)}
-                        onkeydown={(e) => e.key === "Enter" && isEditMode && canSelect && toggleSetSelection(questionSet.id)}
+                        onclick={() =>
+                            isEditMode &&
+                            canSelect &&
+                            toggleSetSelection(questionSet.id)}
+                        onkeydown={(e) =>
+                            e.key === "Enter" &&
+                            isEditMode &&
+                            canSelect &&
+                            toggleSetSelection(questionSet.id)}
                         tabindex={isEditMode && canSelect ? 0 : undefined}
                         role={isEditMode && canSelect ? "button" : undefined}
                     >
-                        <QuestionSetCard {questionSet} isSelected={isEditMode && isSelected} />
+                        <QuestionSetCard
+                            {questionSet}
+                            isSelected={isEditMode && isSelected}
+                        />
                     </div>
                 {/each}
             </div>
@@ -225,6 +475,7 @@
     </div>
 </div>
 
+<!-- Create Modal -->
 <Modal
     isOpen={showCreateModal}
     onClose={closeCreateModal}

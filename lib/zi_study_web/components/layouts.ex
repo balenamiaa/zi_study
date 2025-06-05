@@ -182,7 +182,7 @@ defmodule ZiStudyWeb.Layouts do
           </nav>
         </div>
       </aside>
-
+      
     <!-- Main content area -->
       <div class="min-h-screen">
         <main class="p-4 sm:px-6 lg:px-8">
@@ -200,7 +200,7 @@ defmodule ZiStudyWeb.Layouts do
       onclick="openSidebar()"
     >
       <div class="w-8 h-16 bg-gradient-to-r from-base-100 to-base-200 shadow-lg border-r border-t border-b border-base-300 rounded-r-lg relative overflow-hidden">
-
+        
     <!-- Subtle grip dots -->
         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div class="flex flex-col gap-1">
@@ -209,14 +209,14 @@ defmodule ZiStudyWeb.Layouts do
             <div class="w-1 h-1 bg-base-content/20 rounded-full"></div>
           </div>
         </div>
-
+        
     <!-- Glow effect on hover -->
         <div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-r-lg">
         </div>
-
+        
     <!-- Shadow beneath -->
         <div class="absolute top-1 left-1 w-8 h-16 bg-black/10 rounded-r-lg -z-10"></div>
-
+        
     <!-- Tooltip - now shows on group hover -->
         <div class="absolute left-10 top-1/2 transform -translate-y-1/2 bg-base-300 text-base-content text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap shadow-lg">
           Open sidebar

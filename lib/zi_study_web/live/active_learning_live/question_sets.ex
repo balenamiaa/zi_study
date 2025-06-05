@@ -9,7 +9,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
       <.svelte
         name="pages/ActiveLearningQuestionSets"
         socket={@socket}
-        props={%{questionSets: @question_sets}}
+        props={%{questionSets: @question_sets, availableTags: @available_tags}}
       />
     </Layouts.active_learning>
     """
@@ -18,7 +18,10 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_scope.user
 
-    {:ok, assign(socket, :question_sets, get_question_sets(current_user.id))}
+    {:ok,
+     socket
+     |> assign(:question_sets, get_question_sets(current_user.id))
+     |> assign(:available_tags, get_available_tags())}
   end
 
   defp get_question_sets(user_id) do
@@ -40,6 +43,11 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
         updated_at: question_set.updated_at
       }
     end)
+  end
+
+  defp get_available_tags do
+    Questions.list_tags()
+    |> Enum.map(&get_tag_dto/1)
   end
 
   defp get_tag_dto(tag) do
@@ -64,6 +72,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
         {:noreply,
          socket
          |> assign(:question_sets, get_question_sets(current_user.id))
+         |> assign(:available_tags, get_available_tags())
          |> put_flash(:info, "Question set created successfully")}
 
       {:error, _changeset} ->
@@ -75,11 +84,13 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
     current_user = socket.assigns.current_scope.user
     question_set_id_ints = Enum.map(question_set_ids, &String.to_integer/1)
 
-    {:ok, count_deleted} = Questions.bulk_delete_question_sets(current_user.id, question_set_id_ints)
+    {:ok, count_deleted} =
+      Questions.bulk_delete_question_sets(current_user.id, question_set_id_ints)
 
     {:noreply,
      socket
      |> assign(:question_sets, get_question_sets(current_user.id))
+     |> assign(:available_tags, get_available_tags())
      |> put_flash(:info, "Deleted #{count_deleted} question set(s) successfully")}
   end
 end

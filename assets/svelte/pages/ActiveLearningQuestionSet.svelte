@@ -248,8 +248,7 @@
                             <h1
                                 class="text-2xl sm:text-3xl font-bold text-base-content break-words"
                             >
-                                {questionSet.title ||
-                                    "Untitled Question Set"}
+                                {questionSet.title || "Untitled Question Set"}
                             </h1>
                         </div>
 
@@ -298,9 +297,7 @@
                                 {questionSet.description}
                             </div>
                         {:else}
-                            <div
-                                class="text-base-content/50 italic text-sm"
-                            >
+                            <div class="text-base-content/50 italic text-sm">
                                 No description provided
                             </div>
                         {/if}
@@ -338,78 +335,88 @@
     <div class="bg-base-100 border-b border-base-300">
         <div class="max-w-7xl mx-auto p-2 md:p-4">
             <div
-                class="flex flex-col sm:flex-row gap-4 items-start sm:items-center"
+                class="flex flex-col lg:flex-row gap-4 items-start lg:items-center"
             >
-                <label for="search" class="input relative flex-1 max-w-md">
-                    <SearchIcon class="h-5 w-5" />
-                    <input
-                        type="search"
-                        bind:value={searchQuery}
-                        placeholder="Search questions..."
-                        class="grow"
-                    />
-                </label>
-
-                <button
-                    class="btn btn-outline gap-2 min-w-fit"
-                    onclick={() => (showFilters = !showFilters)}
-                >
-                    <svg
-                        class="w-4 h-4"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z"
+                <!-- Enhanced Search Input -->
+                <div class="flex-1 w-full lg:max-w-lg">
+                    <label for="search" class="input input-lg relative w-full">
+                        <SearchIcon class="h-5 w-5" />
+                        <input
+                            type="search"
+                            bind:value={searchQuery}
+                            placeholder="Search questions..."
+                            class="grow text-base"
                         />
-                    </svg>
-                    All Filters
-                    {#if showFilters}
-                        <svg
-                            class="w-4 h-4"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M5 15l7-7 7 7"
-                            />
-                        </svg>
-                    {:else}
-                        <svg
-                            class="w-4 h-4"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M19 9l-7 7-7-7"
-                            />
-                        </svg>
-                    {/if}
-                </button>
+                    </label>
+                </div>
 
-                <div class="text-sm text-base-content/70 min-w-fit">
-                    {filteredQuestions.length} of {questionSet?.questions
-                        ?.length || 0} questions
+                <!-- Filters and Results Row -->
+                <div
+                    class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto"
+                >
+                    <button
+                        class="btn btn-outline gap-2 w-full sm:w-auto"
+                        onclick={() => (showFilters = !showFilters)}
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z"
+                            />
+                        </svg>
+                        Filters
+                        {#if showFilters}
+                            <svg
+                                class="w-4 h-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M5 15l7-7 7 7"
+                                />
+                            </svg>
+                        {:else}
+                            <svg
+                                class="w-4 h-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M19 9l-7 7-7-7"
+                                />
+                            </svg>
+                        {/if}
+                    </button>
+
+                    <div class="text-sm text-base-content/70 whitespace-nowrap">
+                        {filteredQuestions.length} of {questionSet?.questions
+                            ?.length || 0} questions
+                    </div>
                 </div>
             </div>
 
             {#if showFilters}
-                <div class="mt-4 border-t border-base-300 pt-4">
+                <div
+                    class="mt-4 bg-base-200 rounded-lg p-4 border border-base-300"
+                >
                     <FilterPanel bind:difficultyRange bind:answerStatus />
                 </div>
             {/if}

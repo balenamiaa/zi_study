@@ -39,67 +39,58 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Difficulty Range -->
-        <div class="space-y-3">
+        <div class="space-y-4">
             <label
                 for="difficulty-range"
                 class="text-sm font-medium text-base-content"
                 >Difficulty Level</label
             >
-            <div class="space-y-3">
-                <!-- Range Display -->
-                <div
-                    class="flex items-center justify-between text-sm text-base-content/70"
-                >
-                    <span>Level {difficultyRange[0]}</span>
-                    <span>to</span>
-                    <span>Level {difficultyRange[1]}</span>
-                </div>
-
+            <div class="space-y-4">
                 <!-- Min Range -->
-                <div class="space-y-1">
+                <div class="space-y-2">
                     <label for="min-range" class="text-xs text-base-content/60"
                         >Minimum</label
                     >
-                    <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        value={difficultyRange[0]}
-                        oninput={handleMinChange}
-                        class="range range-primary range-sm"
-                    />
-                    <div
-                        class="w-full flex justify-between text-xs px-2 text-base-content/40"
-                    >
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5</span>
+                    <div class="range-container">
+                        <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            value={difficultyRange[0]}
+                            oninput={handleMinChange}
+                            class="range range-primary"
+                        />
+                        <div class="range-labels">
+                            <span>1</span>
+                            <span>2</span>
+                            <span>3</span>
+                            <span>4</span>
+                            <span>5</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Max Range -->
-                <div class="space-y-1">
+                <div class="space-y-2">
                     <label for="max-range" class="text-xs text-base-content/60"
                         >Maximum</label
                     >
-                    <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        value={difficultyRange[1]}
-                        oninput={handleMaxChange}
-                        class="range range-primary range-sm"
-                    />
-                    <div
-                        class="w-full flex justify-between text-xs px-2 text-base-content/40"
-                    >
-                        <span>1</span>
-                        <span>2</span>
-                        <span>3</span>
-                        <span>4</span>
-                        <span>5</span>
+                    <div class="range-container">
+                        <input
+                            type="range"
+                            min="1"
+                            max="5"
+                            value={difficultyRange[1]}
+                            oninput={handleMaxChange}
+                            class="range range-primary"
+                        />
+                        <div class="range-labels">
+                            <span>1</span>
+                            <span>2</span>
+                            <span>3</span>
+                            <span>4</span>
+                            <span>5</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -171,3 +162,24 @@
         {/if}
     </div>
 </div>
+
+<style>
+    .range-container {
+        position: relative;
+        width: 100%;
+    }
+
+    .range-labels {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 0.75rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: rgb(107 114 128 / 0.6);
+    }
+
+    /* Better tick alignment for DaisyUI ranges */
+    .range-container .range {
+        width: 100%;
+    }
+</style>

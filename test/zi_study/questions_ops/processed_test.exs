@@ -815,27 +815,39 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
     test "McqSingleAnswer validates selected_index is non-negative integer" do
       # Valid cases
       valid_map = %{"answer_type" => "mcq_single", "selected_index" => 0}
-      assert %Processed.Answer.McqSingleAnswer{selected_index: 0} = Processed.Answer.from_map(valid_map)
+
+      assert %Processed.Answer.McqSingleAnswer{selected_index: 0} =
+               Processed.Answer.from_map(valid_map)
 
       valid_map2 = %{"answer_type" => "mcq_single", "selected_index" => 5}
-      assert %Processed.Answer.McqSingleAnswer{selected_index: 5} = Processed.Answer.from_map(valid_map2)
+
+      assert %Processed.Answer.McqSingleAnswer{selected_index: 5} =
+               Processed.Answer.from_map(valid_map2)
 
       # Negative values are accepted at struct level, validation happens at question level
       negative_map = %{"answer_type" => "mcq_single", "selected_index" => -1}
-      assert %Processed.Answer.McqSingleAnswer{selected_index: -1} = Processed.Answer.from_map(negative_map)
+
+      assert %Processed.Answer.McqSingleAnswer{selected_index: -1} =
+               Processed.Answer.from_map(negative_map)
     end
 
     test "McqMultiAnswer validates selected_indices is list of non-negative integers" do
       # Valid cases
       valid_map = %{"answer_type" => "mcq_multi", "selected_indices" => []}
-      assert %Processed.Answer.McqMultiAnswer{selected_indices: []} = Processed.Answer.from_map(valid_map)
+
+      assert %Processed.Answer.McqMultiAnswer{selected_indices: []} =
+               Processed.Answer.from_map(valid_map)
 
       valid_map2 = %{"answer_type" => "mcq_multi", "selected_indices" => [0, 1, 2]}
-      assert %Processed.Answer.McqMultiAnswer{selected_indices: [0, 1, 2]} = Processed.Answer.from_map(valid_map2)
+
+      assert %Processed.Answer.McqMultiAnswer{selected_indices: [0, 1, 2]} =
+               Processed.Answer.from_map(valid_map2)
 
       # Test with duplicate indices (should be preserved as-is)
       valid_map3 = %{"answer_type" => "mcq_multi", "selected_indices" => [0, 0, 1]}
-      assert %Processed.Answer.McqMultiAnswer{selected_indices: [0, 0, 1]} = Processed.Answer.from_map(valid_map3)
+
+      assert %Processed.Answer.McqMultiAnswer{selected_indices: [0, 0, 1]} =
+               Processed.Answer.from_map(valid_map3)
     end
 
     test "ClozeAnswer validates answers is list of strings" do
@@ -844,11 +856,15 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert %Processed.Answer.ClozeAnswer{answers: []} = Processed.Answer.from_map(valid_map)
 
       valid_map2 = %{"answer_type" => "cloze", "answers" => ["answer1", "answer2"]}
-      assert %Processed.Answer.ClozeAnswer{answers: ["answer1", "answer2"]} = Processed.Answer.from_map(valid_map2)
+
+      assert %Processed.Answer.ClozeAnswer{answers: ["answer1", "answer2"]} =
+               Processed.Answer.from_map(valid_map2)
 
       # Test with empty strings (should be preserved)
       valid_map3 = %{"answer_type" => "cloze", "answers" => ["", "answer"]}
-      assert %Processed.Answer.ClozeAnswer{answers: ["", "answer"]} = Processed.Answer.from_map(valid_map3)
+
+      assert %Processed.Answer.ClozeAnswer{answers: ["", "answer"]} =
+               Processed.Answer.from_map(valid_map3)
     end
 
     test "EmqAnswer validates matches is list of tuples/lists" do
@@ -857,11 +873,15 @@ defmodule ZiStudy.QuestionsOps.ProcessedTest do
       assert %Processed.Answer.EmqAnswer{matches: []} = Processed.Answer.from_map(valid_map)
 
       valid_map2 = %{"answer_type" => "emq", "matches" => [[0, 1], [1, 0]]}
-      assert %Processed.Answer.EmqAnswer{matches: [[0, 1], [1, 0]]} = Processed.Answer.from_map(valid_map2)
+
+      assert %Processed.Answer.EmqAnswer{matches: [[0, 1], [1, 0]]} =
+               Processed.Answer.from_map(valid_map2)
 
       # Test with different formats
       valid_map3 = %{"answer_type" => "emq", "matches" => [{0, 1}, {1, 0}]}
-      assert %Processed.Answer.EmqAnswer{matches: [{0, 1}, {1, 0}]} = Processed.Answer.from_map(valid_map3)
+
+      assert %Processed.Answer.EmqAnswer{matches: [{0, 1}, {1, 0}]} =
+               Processed.Answer.from_map(valid_map3)
     end
   end
 end

@@ -23,7 +23,7 @@
     }
 
     function navigateToQuestionSet() {
-        // This will be implemented with proper routing later
+        window.location.href = `/active-learning/question_set/${questionSet.id}`;
     }
 </script>
 
@@ -44,7 +44,9 @@
     <div class="card-body p-6">
         <div class="flex items-start justify-between mb-4">
             <div class="flex-1">
-                <h3 class="card-title text-lg font-bold text-base-content group-hover:text-primary transition-colors duration-200">
+                <h3
+                    class="card-title text-lg font-bold text-base-content group-hover:text-primary transition-colors duration-200"
+                >
                     {questionSet.title}
                 </h3>
                 {#if questionSet.description}
@@ -55,15 +57,21 @@
             </div>
 
             {#if questionSet.is_private}
-                <div class="badge badge-secondary badge-sm">Private</div>
+                <div class="badge badge-secondary badge-sm font-medium">
+                    Private
+                </div>
             {:else}
-                <div class="badge badge-primary badge-sm">Public</div>
+                <div class="badge badge-primary badge-sm font-medium">
+                    Public
+                </div>
             {/if}
         </div>
 
         <div class="grid grid-cols-2 gap-4 mb-4">
             <div class="bg-base-100 rounded-lg p-3">
-                <div class="text-xs text-base-content/60 uppercase tracking-wide">
+                <div
+                    class="text-xs text-base-content/60 uppercase tracking-wide"
+                >
                     Questions
                 </div>
                 <div class="text-2xl font-bold text-base-content">
@@ -71,7 +79,9 @@
                 </div>
             </div>
             <div class="bg-base-100 rounded-lg p-3">
-                <div class="text-xs text-base-content/60 uppercase tracking-wide">
+                <div
+                    class="text-xs text-base-content/60 uppercase tracking-wide"
+                >
                     Completed
                 </div>
                 <div class="text-2xl font-bold text-primary">
@@ -95,19 +105,29 @@
         {/if}
 
         {#if questionSet.tags && questionSet.tags.length > 0}
-            <div class="flex flex-wrap gap-1 mb-4">
-                {#each questionSet.tags.slice(0, 3) as tag}
-                    <span class="badge badge-outline badge-xs">{tag.name}</span>
-                {/each}
-                {#if questionSet.tags.length > 3}
-                    <span class="badge badge-outline badge-xs">
-                        +{questionSet.tags.length - 3}
-                    </span>
-                {/if}
+            <div class="mb-4">
+                <div class="flex flex-wrap gap-2">
+                    {#each questionSet.tags.slice(0, 3) as tag}
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
+                        >
+                            {tag.name}
+                        </span>
+                    {/each}
+                    {#if questionSet.tags.length > 3}
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-base-content/10 text-base-content/70 border border-base-content/20"
+                        >
+                            +{questionSet.tags.length - 3} more
+                        </span>
+                    {/if}
+                </div>
             </div>
         {/if}
 
-        <div class="flex items-center justify-between text-xs text-base-content/60">
+        <div
+            class="flex items-center justify-between text-xs text-base-content/60"
+        >
             <div class="flex items-center gap-1">
                 {#if questionSet.owner}
                     <svg
@@ -124,7 +144,9 @@
                             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                         />
                     </svg>
-                    <span>{questionSet.owner.email}</span>
+                    <span class="truncate">{questionSet.owner.email}</span>
+                {:else}
+                    <span class="text-base-content/50 italic">System</span>
                 {/if}
             </div>
             <div>
@@ -133,7 +155,9 @@
         </div>
     </div>
 
-    <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none"></div>
+    <div
+        class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl pointer-events-none"
+    ></div>
 </div>
 
 <style>

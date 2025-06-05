@@ -32,14 +32,16 @@ defmodule ZiStudy.QuestionsTest do
       owned_sets = Questions.list_question_sets(user.id, true)
       assert user_public in owned_sets
       assert user_private in owned_sets
-      refute other_public in owned_sets  # Other user's sets should not be included
+      # Other user's sets should not be included
+      refute other_public in owned_sets
       refute other_private in owned_sets
 
       # Get user's owned sets + all public sets from others
       all_accessible_sets = Questions.list_question_sets(user.id, false)
       assert user_public in all_accessible_sets
       assert user_private in all_accessible_sets
-      assert other_public in all_accessible_sets  # Public sets from other users should be included
+      # Public sets from other users should be included
+      assert other_public in all_accessible_sets
       refute other_private in all_accessible_sets
     end
 
@@ -49,14 +51,16 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "get_question_set/1 returns nil for non-existent id" do
-      assert Questions.get_question_set(999999) == nil
+      assert Questions.get_question_set(999_999) == nil
     end
 
     test "create_question_set/2 with valid data creates a question set" do
       user = user_fixture()
       valid_attrs = valid_question_set_attributes()
 
-      assert {:ok, %QuestionSet{} = question_set} = Questions.create_question_set(user, valid_attrs)
+      assert {:ok, %QuestionSet{} = question_set} =
+               Questions.create_question_set(user, valid_attrs)
+
       assert question_set.title == valid_attrs["title"]
       assert question_set.description == valid_attrs["description"]
       assert question_set.owner_id == user.id
@@ -70,7 +74,9 @@ defmodule ZiStudy.QuestionsTest do
     test "create_question_set_ownerless/1 creates a public question set without owner" do
       valid_attrs = valid_question_set_attributes()
 
-      assert {:ok, %QuestionSet{} = question_set} = Questions.create_question_set_ownerless(valid_attrs)
+      assert {:ok, %QuestionSet{} = question_set} =
+               Questions.create_question_set_ownerless(valid_attrs)
+
       assert question_set.title == valid_attrs["title"]
       assert question_set.owner_id == nil
       assert question_set.is_private == false
@@ -80,14 +86,18 @@ defmodule ZiStudy.QuestionsTest do
       question_set = question_set_fixture()
       update_attrs = %{title: "Updated Title", description: "Updated Description"}
 
-      assert {:ok, %QuestionSet{} = question_set} = Questions.update_question_set(question_set, update_attrs)
+      assert {:ok, %QuestionSet{} = question_set} =
+               Questions.update_question_set(question_set, update_attrs)
+
       assert question_set.title == "Updated Title"
       assert question_set.description == "Updated Description"
     end
 
     test "update_question_set/2 with invalid data returns error changeset" do
       question_set = question_set_fixture()
-      assert {:error, %Ecto.Changeset{}} = Questions.update_question_set(question_set, %{title: nil})
+
+      assert {:error, %Ecto.Changeset{}} =
+               Questions.update_question_set(question_set, %{title: nil})
 
       # Compare essential fields rather than full structs to avoid association loading differences
       updated_question_set = Questions.get_question_set(question_set.id)
@@ -119,7 +129,7 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "get_question/1 returns nil for non-existent id" do
-      assert Questions.get_question(999999) == nil
+      assert Questions.get_question(999_999) == nil
     end
 
     test "create_question/1 with valid processed content creates a question" do
@@ -167,6 +177,7 @@ defmodule ZiStudy.QuestionsTest do
         "difficulty" => "easy"
         # Missing instructions
       }
+
       processed_emq = Processed.Question.from_map(invalid_emq)
       assert {:error, %Ecto.Changeset{}} = Questions.create_question(processed_emq)
 
@@ -178,6 +189,7 @@ defmodule ZiStudy.QuestionsTest do
         "difficulty" => "easy"
         # Missing question_text
       }
+
       processed_mcq = Processed.Question.from_map(invalid_mcq)
       assert {:error, %Ecto.Changeset{}} = Questions.create_question(processed_mcq)
     end
@@ -198,7 +210,9 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "search_questions/1 finds questions by text content" do
-      question1 = question_fixture(:mcq_single, %{"question_text" => "What is the capital of France?"})
+      question1 =
+        question_fixture(:mcq_single, %{"question_text" => "What is the capital of France?"})
+
       question2 = question_fixture(:mcq_single, %{"question_text" => "What is 2 + 2?"})
 
       results = Questions.search_questions("France")
@@ -209,7 +223,9 @@ defmodule ZiStudy.QuestionsTest do
     test "search_questions/1 works with different question types" do
       mcq_question = question_fixture(:mcq_single, %{"question_text" => "Mathematics problem"})
       written_question = question_fixture(:written, %{"question_text" => "Explain mathematics"})
-      cloze_question = question_fixture(:cloze, %{"question_text" => "The study of mathematics is ___"})
+
+      cloze_question =
+        question_fixture(:cloze, %{"question_text" => "The study of mathematics is ___"})
 
       results = Questions.search_questions("mathematics")
       assert mcq_question in results
@@ -227,7 +243,8 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "search_questions/1 handles case insensitive search" do
-      question = question_fixture(:mcq_single, %{"question_text" => "What is the CAPITAL of France?"})
+      question =
+        question_fixture(:mcq_single, %{"question_text" => "What is the CAPITAL of France?"})
 
       results_lower = Questions.search_questions("capital")
       results_upper = Questions.search_questions("CAPITAL")
@@ -259,12 +276,14 @@ defmodule ZiStudy.QuestionsTest do
     test "get_question_as_processed/1 returns processed struct" do
       question = question_fixture(:mcq_single)
 
-      assert {:ok, %Processed.Question.McqSingle{} = processed} = Questions.get_question_as_processed(question.id)
+      assert {:ok, %Processed.Question.McqSingle{} = processed} =
+               Questions.get_question_as_processed(question.id)
+
       assert processed.question_text == question.data["question_text"]
     end
 
     test "get_question_as_processed/1 returns nil for non-existent question" do
-      assert Questions.get_question_as_processed(999999) == nil
+      assert Questions.get_question_as_processed(999_999) == nil
     end
   end
 
@@ -279,12 +298,14 @@ defmodule ZiStudy.QuestionsTest do
         Processed.Question.to_map(Processed.Question.from_map(question1.data)),
         Processed.Question.to_map(Processed.Question.from_map(question2.data))
       ]
+
       json_string = Jason.encode!(json_data)
 
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
-      assert {:ok, _} = Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      assert {:ok, _} =
+               Questions.import_questions_from_json(json_string, user.id, question_set.id)
 
       results = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(results) == 2
@@ -301,7 +322,8 @@ defmodule ZiStudy.QuestionsTest do
       json_data = [Processed.Question.to_map(Processed.Question.from_map(question.data))]
       json_string = Jason.encode!(json_data)
 
-      assert {:ok, _} = Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      assert {:ok, _} =
+               Questions.import_questions_from_json(json_string, user.id, question_set.id)
 
       # Verify question is in set and get the actual question IDs
       questions_before = Questions.get_question_set_questions_with_positions(question_set.id)
@@ -353,10 +375,11 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
-      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+      question_ids = Enum.map(questions_in_set, & &1.question.id)
 
       assert question1.id in question_ids
       assert question2.id in question_ids
@@ -371,10 +394,11 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1.id, question2.id], user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, [question1.id, question2.id], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
-      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+      question_ids = Enum.map(questions_in_set, & &1.question.id)
 
       assert question1.id in question_ids
       assert question2.id in question_ids
@@ -394,7 +418,8 @@ defmodule ZiStudy.QuestionsTest do
         %{id: question2.id, position: 3}
       ]
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, questions_with_positions, user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, questions_with_positions, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
 
@@ -419,10 +444,11 @@ defmodule ZiStudy.QuestionsTest do
         %{id: question2.id}
       ]
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, questions_as_maps, user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, questions_as_maps, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
-      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+      question_ids = Enum.map(questions_in_set, & &1.question.id)
 
       assert question1.id in question_ids
       assert question2.id in question_ids
@@ -444,13 +470,14 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(questions_in_set) == 3
 
       # Verify the new questions have higher positions
-      positions = Enum.map(questions_in_set, &(&1.position)) |> Enum.sort()
+      positions = Enum.map(questions_in_set, & &1.position) |> Enum.sort()
       assert positions == [1, 2, 3]
     end
 
@@ -460,10 +487,11 @@ defmodule ZiStudy.QuestionsTest do
       question2 = question_fixture()
 
       # Should work without authorization
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, [question1, question2])
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, [question1, question2])
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
-      question_ids = Enum.map(questions_in_set, &(&1.question.id))
+      question_ids = Enum.map(questions_in_set, & &1.question.id)
 
       assert question1.id in question_ids
       assert question2.id in question_ids
@@ -472,11 +500,13 @@ defmodule ZiStudy.QuestionsTest do
     test "add_questions_to_set/3 returns error for unauthorized user" do
       user1 = user_fixture()
       user2 = user_fixture()
-      question_set = question_set_fixture(user1)  # owned by user1
+      # owned by user1
+      question_set = question_set_fixture(user1)
       question = question_fixture()
 
       # user2 tries to add questions to user1's set
-      assert {:error, :unauthorized} = Questions.add_questions_to_set(question_set, [question], user2.id)
+      assert {:error, :unauthorized} =
+               Questions.add_questions_to_set(question_set, [question], user2.id)
 
       # Verify no questions were added
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
@@ -488,7 +518,8 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
-      assert {:error, :no_valid_questions} = Questions.add_questions_to_set(question_set, [], user.id)
+      assert {:error, :no_valid_questions} =
+               Questions.add_questions_to_set(question_set, [], user.id)
     end
 
     test "add_questions_to_set/3 returns error for invalid question data" do
@@ -498,7 +529,8 @@ defmodule ZiStudy.QuestionsTest do
 
       invalid_questions = ["invalid", %{invalid: "data"}, nil]
 
-      assert {:error, :no_valid_questions} = Questions.add_questions_to_set(question_set, invalid_questions, user.id)
+      assert {:error, :no_valid_questions} =
+               Questions.add_questions_to_set(question_set, invalid_questions, user.id)
     end
 
     test "add_questions_to_set/3 handles mixed valid and invalid questions" do
@@ -509,7 +541,8 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       mixed_questions = [question1, "invalid", %{invalid: "data"}]
 
-      assert {:ok, _updated_set} = Questions.add_questions_to_set(question_set, mixed_questions, user.id)
+      assert {:ok, _updated_set} =
+               Questions.add_questions_to_set(question_set, mixed_questions, user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(questions_in_set) == 1
@@ -566,7 +599,8 @@ defmodule ZiStudy.QuestionsTest do
       tag1 = tag_fixture()
       tag2 = tag_fixture()
 
-      assert {:ok, updated_set} = Questions.add_tags_to_question_set(question_set, [tag1.name, tag2.name])
+      assert {:ok, updated_set} =
+               Questions.add_tags_to_question_set(question_set, [tag1.name, tag2.name])
 
       tag_names = Enum.map(updated_set.tags, & &1.name)
       assert tag1.name in tag_names
@@ -595,13 +629,19 @@ defmodule ZiStudy.QuestionsTest do
       %{user: user, question: question}
     end
 
-    test "list_answers_for_question/1 returns all answers for a question", %{user: user, question: question} do
+    test "list_answers_for_question/1 returns all answers for a question", %{
+      user: user,
+      question: question
+    } do
       answer = answer_fixture(user, question)
       answers = Questions.list_answers_for_question(question.id)
       assert answer.id in Enum.map(answers, & &1.id)
     end
 
-    test "list_answers_for_user/1 returns all answers for a user", %{user: user, question: question} do
+    test "list_answers_for_user/1 returns all answers for a user", %{
+      user: user,
+      question: question
+    } do
       answer = answer_fixture(user, question)
       answers = Questions.list_answers_for_user(user.id)
       assert answer.id in Enum.map(answers, & &1.id)
@@ -614,10 +654,13 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "get_answer/1 returns nil for non-existent id" do
-      assert Questions.get_answer(999999) == nil
+      assert Questions.get_answer(999_999) == nil
     end
 
-    test "get_user_answer/2 returns answer for user-question combination", %{user: user, question: question} do
+    test "get_user_answer/2 returns answer for user-question combination", %{
+      user: user,
+      question: question
+    } do
       answer = answer_fixture(user, question)
       found_answer = Questions.get_user_answer(user.id, question.id)
       assert found_answer.id == answer.id
@@ -648,7 +691,9 @@ defmodule ZiStudy.QuestionsTest do
     test "upsert_answer/4 creates new answer if none exists", %{user: user, question: question} do
       answer_data = %{"selected_index" => 2}
 
-      assert {:ok, %Answer{} = answer} = Questions.upsert_answer(user.id, question.id, answer_data, 1)
+      assert {:ok, %Answer{} = answer} =
+               Questions.upsert_answer(user.id, question.id, answer_data, 1)
+
       assert answer.data == answer_data
       assert answer.is_correct == 1
     end
@@ -659,7 +704,9 @@ defmodule ZiStudy.QuestionsTest do
 
       # Upsert with new data
       new_data = %{"selected_index" => 3}
-      assert {:ok, %Answer{} = updated_answer} = Questions.upsert_answer(user.id, question.id, new_data, 0)
+
+      assert {:ok, %Answer{} = updated_answer} =
+               Questions.upsert_answer(user.id, question.id, new_data, 0)
 
       # Should be the same record, but updated
       assert updated_answer.id == initial_answer.id
@@ -673,7 +720,9 @@ defmodule ZiStudy.QuestionsTest do
       assert Questions.get_answer(answer.id) == nil
     end
 
-    test "get_user_answers_for_questions/2 returns answers for user and list of questions", %{user: user} do
+    test "get_user_answers_for_questions/2 returns answers for user and list of questions", %{
+      user: user
+    } do
       # Create multiple questions
       question1 = question_fixture(:mcq_single)
       question2 = question_fixture(:true_false)
@@ -762,10 +811,14 @@ defmodule ZiStudy.QuestionsTest do
 
       # Mix different input types
       questions = [
-        question1,                  # Full Question struct
-        %Question{id: question2.id}, # Partial Question struct
-        %{id: question3.id},        # Map with id
-        question1.id                # Raw integer (duplicate, should be handled)
+        # Full Question struct
+        question1,
+        # Partial Question struct
+        %Question{id: question2.id},
+        # Map with id
+        %{id: question3.id},
+        # Raw integer (duplicate, should be handled)
+        question1.id
       ]
 
       answers = Questions.get_user_answers_for_questions(user.id, questions)
@@ -789,7 +842,9 @@ defmodule ZiStudy.QuestionsTest do
       assert answers == []
     end
 
-    test "get_user_answers_for_questions/2 returns empty list for empty question list", %{user: user} do
+    test "get_user_answers_for_questions/2 returns empty list for empty question list", %{
+      user: user
+    } do
       answers = Questions.get_user_answers_for_questions(user.id, [])
       assert answers == []
     end
@@ -800,11 +855,16 @@ defmodule ZiStudy.QuestionsTest do
 
       # Mix valid and invalid inputs
       questions = [
-        question1,           # Valid
-        %{invalid: "data"},  # Invalid - no id
-        nil,                 # Invalid - nil
-        %{id: nil},          # Invalid - nil id
-        999999               # Valid format but non-existent question
+        # Valid
+        question1,
+        # Invalid - no id
+        %{invalid: "data"},
+        # Invalid - nil
+        nil,
+        # Invalid - nil id
+        %{id: nil},
+        # Valid format but non-existent question
+        999_999
       ]
 
       answers = Questions.get_user_answers_for_questions(user.id, questions)
@@ -814,7 +874,9 @@ defmodule ZiStudy.QuestionsTest do
       assert List.first(answers).id == answer1.id
     end
 
-    test "get_user_answers_for_questions/2 only returns answers for the specified user", %{user: user} do
+    test "get_user_answers_for_questions/2 only returns answers for the specified user", %{
+      user: user
+    } do
       other_user = user_fixture()
       question1 = question_fixture(:mcq_single)
       question2 = question_fixture(:true_false)
@@ -822,7 +884,8 @@ defmodule ZiStudy.QuestionsTest do
       # Create answers for both users
       user_answer = answer_fixture(user, question1)
       other_user_answer = answer_fixture(other_user, question1)
-      answer_fixture(other_user, question2)  # Another answer for other user
+      # Another answer for other user
+      answer_fixture(other_user, question2)
 
       questions = [question1, question2]
       answers = Questions.get_user_answers_for_questions(user.id, questions)
@@ -833,7 +896,9 @@ defmodule ZiStudy.QuestionsTest do
       refute other_user_answer.id in Enum.map(answers, & &1.id)
     end
 
-    test "get_user_answers_for_questions/2 handles large number of questions efficiently", %{user: user} do
+    test "get_user_answers_for_questions/2 handles large number of questions efficiently", %{
+      user: user
+    } do
       # Create many questions and answers
       questions_and_answers =
         Enum.map(1..50, fn _ ->
@@ -864,11 +929,16 @@ defmodule ZiStudy.QuestionsTest do
       %{user1: user1, user2: user2, question1: question1, question2: question2}
     end
 
-    test "get_user_answer_stats/1 returns correct statistics", %{user1: user1, question1: question1, question2: question2} do
+    test "get_user_answer_stats/1 returns correct statistics", %{
+      user1: user1,
+      question1: question1,
+      question2: question2
+    } do
       # Create different types of answers
       correct_answer_fixture(user1, question1, %{is_correct: 1})
       incorrect_answer_fixture(user1, question2, %{is_correct: 0})
-      answer_fixture(user1, question_fixture(), %{is_correct: 2})  # unevaluated
+      # unevaluated
+      answer_fixture(user1, question_fixture(), %{is_correct: 2})
 
       stats = Questions.get_user_answer_stats(user1.id)
 
@@ -878,7 +948,11 @@ defmodule ZiStudy.QuestionsTest do
       assert stats.unevaluated_answers == 1
     end
 
-    test "get_question_answer_stats/1 returns correct statistics", %{user1: user1, user2: user2, question1: question1} do
+    test "get_question_answer_stats/1 returns correct statistics", %{
+      user1: user1,
+      user2: user2,
+      question1: question1
+    } do
       # Create different answers for the same question
       correct_answer_fixture(user1, question1, %{is_correct: 1})
       incorrect_answer_fixture(user2, question1, %{is_correct: 0})
@@ -891,7 +965,10 @@ defmodule ZiStudy.QuestionsTest do
       assert stats.unevaluated_answers == 0
     end
 
-    test "get_user_question_set_stats/2 returns stats for user on specific question set", %{user1: user1, question1: question1} do
+    test "get_user_question_set_stats/2 returns stats for user on specific question set", %{
+      user1: user1,
+      question1: question1
+    } do
       question_set = question_set_fixture()
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
@@ -917,21 +994,27 @@ defmodule ZiStudy.QuestionsTest do
 
   describe "auto grading" do
     test "auto_grade_answers/1 grades MCQ single questions correctly" do
-      question = question_fixture(:mcq_single)  # correct_index: 1
+      # correct_index: 1
+      question = question_fixture(:mcq_single)
       user = user_fixture()
 
       # Create correct answer
-      correct_answer = answer_fixture(user, question, %{
-        data: %{"selected_index" => 1},
-        is_correct: 2  # unevaluated
-      })
+      correct_answer =
+        answer_fixture(user, question, %{
+          data: %{"selected_index" => 1},
+          # unevaluated
+          is_correct: 2
+        })
 
       # Create incorrect answer
       user2 = user_fixture()
-      incorrect_answer = answer_fixture(user2, question, %{
-        data: %{"selected_index" => 0},
-        is_correct: 2  # unevaluated
-      })
+
+      incorrect_answer =
+        answer_fixture(user2, question, %{
+          data: %{"selected_index" => 0},
+          # unevaluated
+          is_correct: 2
+        })
 
       assert {:ok, 2} = Questions.auto_grade_answers(question.id)
 
@@ -944,13 +1027,15 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "auto_grade_answers/1 grades true/false questions correctly" do
-      question = question_fixture(:true_false)  # is_correct_true: true
+      # is_correct_true: true
+      question = question_fixture(:true_false)
       user = user_fixture()
 
-      answer = answer_fixture(user, question, %{
-        data: %{"selected" => true},
-        is_correct: 2
-      })
+      answer =
+        answer_fixture(user, question, %{
+          data: %{"selected" => true},
+          is_correct: 2
+        })
 
       assert {:ok, 1} = Questions.auto_grade_answers(question.id)
 
@@ -962,33 +1047,40 @@ defmodule ZiStudy.QuestionsTest do
       question = question_fixture(:written)
       user = user_fixture()
 
-      answer = answer_fixture(user, question, %{
-        data: %{"answer_text" => "Some answer"},
-        is_correct: 2
-      })
+      answer =
+        answer_fixture(user, question, %{
+          data: %{"answer_text" => "Some answer"},
+          is_correct: 2
+        })
 
       assert {:ok, 1} = Questions.auto_grade_answers(question.id)
 
       updated_answer = Questions.get_answer(answer.id)
-      assert updated_answer.is_correct == 0  # marked as incorrect since we can't auto-grade
+      # marked as incorrect since we can't auto-grade
+      assert updated_answer.is_correct == 0
     end
 
     test "auto_grade_answers/1 grades MCQ multi questions correctly" do
-      question = question_fixture(:mcq_multi)  # correct_indices: [0, 1, 3]
+      # correct_indices: [0, 1, 3]
+      question = question_fixture(:mcq_multi)
       user = user_fixture()
 
       # Create correct answer
-      correct_answer = answer_fixture(user, question, %{
-        data: %{"selected_indices" => [0, 1, 3]},
-        is_correct: 2
-      })
+      correct_answer =
+        answer_fixture(user, question, %{
+          data: %{"selected_indices" => [0, 1, 3]},
+          is_correct: 2
+        })
 
       # Create incorrect answer
       user2 = user_fixture()
-      incorrect_answer = answer_fixture(user2, question, %{
-        data: %{"selected_indices" => [0, 1]},  # Missing one correct answer
-        is_correct: 2
-      })
+
+      incorrect_answer =
+        answer_fixture(user2, question, %{
+          # Missing one correct answer
+          data: %{"selected_indices" => [0, 1]},
+          is_correct: 2
+        })
 
       assert {:ok, 2} = Questions.auto_grade_answers(question.id)
 
@@ -1000,21 +1092,25 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "auto_grade_answers/1 grades cloze questions correctly" do
-      question = question_fixture(:cloze)  # answers: ["Paris", "Europe"]
+      # answers: ["Paris", "Europe"]
+      question = question_fixture(:cloze)
       user = user_fixture()
 
       # Create correct answer (case insensitive)
-      correct_answer = answer_fixture(user, question, %{
-        data: %{"answers" => ["paris", "EUROPE"]},
-        is_correct: 2
-      })
+      correct_answer =
+        answer_fixture(user, question, %{
+          data: %{"answers" => ["paris", "EUROPE"]},
+          is_correct: 2
+        })
 
       # Create incorrect answer
       user2 = user_fixture()
-      incorrect_answer = answer_fixture(user2, question, %{
-        data: %{"answers" => ["London", "Europe"]},
-        is_correct: 2
-      })
+
+      incorrect_answer =
+        answer_fixture(user2, question, %{
+          data: %{"answers" => ["London", "Europe"]},
+          is_correct: 2
+        })
 
       assert {:ok, 2} = Questions.auto_grade_answers(question.id)
 
@@ -1026,28 +1122,34 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "auto_grade_answers/1 grades EMQ questions correctly" do
-      question = question_fixture(:emq)  # matches: [[0, 0], [1, 1], [2, 2]]
+      # matches: [[0, 0], [1, 1], [2, 2]]
+      question = question_fixture(:emq)
       user = user_fixture()
 
       # Create correct answer
-      correct_answer = answer_fixture(user, question, %{
-        data: %{"matches" => [[0, 0], [1, 1], [2, 2]]},
-        is_correct: 2
-      })
+      correct_answer =
+        answer_fixture(user, question, %{
+          data: %{"matches" => [[0, 0], [1, 1], [2, 2]]},
+          is_correct: 2
+        })
 
       # Create incorrect answer (different order should still be correct)
       user2 = user_fixture()
-      reordered_answer = answer_fixture(user2, question, %{
-        data: %{"matches" => [[2, 2], [0, 0], [1, 1]]},
-        is_correct: 2
-      })
+
+      reordered_answer =
+        answer_fixture(user2, question, %{
+          data: %{"matches" => [[2, 2], [0, 0], [1, 1]]},
+          is_correct: 2
+        })
 
       # Create actually incorrect answer
       user3 = user_fixture()
-      incorrect_answer = answer_fixture(user3, question, %{
-        data: %{"matches" => [[0, 1], [1, 0], [2, 2]]},
-        is_correct: 2
-      })
+
+      incorrect_answer =
+        answer_fixture(user3, question, %{
+          data: %{"matches" => [[0, 1], [1, 0], [2, 2]]},
+          is_correct: 2
+        })
 
       assert {:ok, 3} = Questions.auto_grade_answers(question.id)
 
@@ -1056,12 +1158,13 @@ defmodule ZiStudy.QuestionsTest do
       updated_incorrect = Questions.get_answer(incorrect_answer.id)
 
       assert updated_correct.is_correct == 1
-      assert updated_reordered.is_correct == 1  # Different order but same matches
+      # Different order but same matches
+      assert updated_reordered.is_correct == 1
       assert updated_incorrect.is_correct == 0
     end
 
     test "auto_grade_answers/1 returns error for non-existent question" do
-      assert {:error, :question_not_found} = Questions.auto_grade_answers(999999)
+      assert {:error, :question_not_found} = Questions.auto_grade_answers(999_999)
     end
   end
 
@@ -1073,6 +1176,7 @@ defmodule ZiStudy.QuestionsTest do
         mcq_single_question_data(),
         true_false_question_data()
       ]
+
       json_string = Jason.encode!(json_data)
 
       assert {:ok, questions} = Questions.import_questions_from_json(json_string, user.id)
@@ -1091,6 +1195,7 @@ defmodule ZiStudy.QuestionsTest do
         cloze_question_data(),
         emq_question_data()
       ]
+
       json_string = Jason.encode!(json_data)
 
       assert {:ok, questions} = Questions.import_questions_from_json(json_string, user.id)
@@ -1118,6 +1223,7 @@ defmodule ZiStudy.QuestionsTest do
           # Missing instructions and difficulty - should fail
         }
       ]
+
       json_string = Jason.encode!(json_data)
 
       # Should fail with transaction rollback error
@@ -1138,7 +1244,8 @@ defmodule ZiStudy.QuestionsTest do
       json_data = [mcq_single_question_data()]
       json_string = Jason.encode!(json_data)
 
-      assert {:ok, _questions} = Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      assert {:ok, _questions} =
+               Questions.import_questions_from_json(json_string, user.id, question_set.id)
 
       # Verify question was added to set
       set_questions = Questions.get_question_set_questions_with_positions(question_set.id)
@@ -1149,14 +1256,16 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
       invalid_json = "invalid json"
 
-      assert {:error, :invalid_json_payload, _} = Questions.import_questions_from_json(invalid_json, user.id)
+      assert {:error, :invalid_json_payload, _} =
+               Questions.import_questions_from_json(invalid_json, user.id)
     end
 
     test "returns error for non-list JSON" do
       user = user_fixture()
       json_string = Jason.encode!(%{"not" => "a list"})
 
-      assert {:error, :invalid_format_expected_list} = Questions.import_questions_from_json(json_string, user.id)
+      assert {:error, :invalid_format_expected_list} =
+               Questions.import_questions_from_json(json_string, user.id)
     end
 
     test "rolls back transaction if any question fails" do
@@ -1164,14 +1273,17 @@ defmodule ZiStudy.QuestionsTest do
 
       json_data = [
         mcq_single_question_data(),
-        %{invalid: "data"}  # This will fail
+        # This will fail
+        %{invalid: "data"}
       ]
+
       json_string = Jason.encode!(json_data)
 
       # Should return error and not create any questions
       initial_count = length(Questions.list_questions())
 
-      assert {:error, :invalid_question_data, _details} = Questions.import_questions_from_json(json_string, user.id)
+      assert {:error, :invalid_question_data, _details} =
+               Questions.import_questions_from_json(json_string, user.id)
 
       final_count = length(Questions.list_questions())
       assert final_count == initial_count
@@ -1190,6 +1302,7 @@ defmodule ZiStudy.QuestionsTest do
         Processed.Question.to_map(Processed.Question.from_map(question1.data)),
         Processed.Question.to_map(Processed.Question.from_map(question2.data))
       ]
+
       json_string = Jason.encode!(json_data)
       Questions.import_questions_from_json(json_string, user.id, question_set.id)
 
@@ -1217,6 +1330,7 @@ defmodule ZiStudy.QuestionsTest do
         Processed.Question.to_map(Processed.Question.from_map(question1.data)),
         Processed.Question.to_map(Processed.Question.from_map(question2.data))
       ]
+
       json_string = Jason.encode!(json_data)
       Questions.import_questions_from_json(json_string, user.id, question_set.id)
 
@@ -1230,7 +1344,8 @@ defmodule ZiStudy.QuestionsTest do
         %{question_id: second_q.question.id, position: 1}
       ]
 
-      assert {:ok, _} = Questions.update_question_positions_in_set(question_set.id, position_updates)
+      assert {:ok, _} =
+               Questions.update_question_positions_in_set(question_set.id, position_updates)
 
       # Verify positions were updated
       updated_questions = Questions.get_question_set_questions_with_positions(question_set.id)
@@ -1248,7 +1363,8 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "check_answer_correctness/2 validates MCQ single answers correctly" do
-      question = question_fixture(:mcq_single)  # correct_index: 1
+      # correct_index: 1
+      question = question_fixture(:mcq_single)
 
       # Test correct answer
       correct_answer = %{"selected_index" => 1}
@@ -1260,15 +1376,20 @@ defmodule ZiStudy.QuestionsTest do
 
       # Test invalid index
       invalid_answer = %{"selected_index" => 99}
-      assert {:error, :invalid_option_index} = Questions.check_answer_correctness(question.id, invalid_answer)
+
+      assert {:error, :invalid_option_index} =
+               Questions.check_answer_correctness(question.id, invalid_answer)
 
       # Test negative index
       negative_answer = %{"selected_index" => -1}
-      assert {:error, :invalid_option_index} = Questions.check_answer_correctness(question.id, negative_answer)
+
+      assert {:error, :invalid_option_index} =
+               Questions.check_answer_correctness(question.id, negative_answer)
     end
 
     test "check_answer_correctness/2 validates MCQ multi answers correctly" do
-      question = question_fixture(:mcq_multi)  # correct_indices: [0, 1, 3]
+      # correct_indices: [0, 1, 3]
+      question = question_fixture(:mcq_multi)
 
       # Test correct answer (exact match)
       correct_answer = %{"selected_indices" => [0, 1, 3]}
@@ -1288,11 +1409,14 @@ defmodule ZiStudy.QuestionsTest do
 
       # Test invalid indices
       invalid_answer = %{"selected_indices" => [0, 1, 99]}
-      assert {:error, :invalid_option_indices} = Questions.check_answer_correctness(question.id, invalid_answer)
+
+      assert {:error, :invalid_option_indices} =
+               Questions.check_answer_correctness(question.id, invalid_answer)
     end
 
     test "check_answer_correctness/2 validates true/false answers correctly" do
-      question = question_fixture(:true_false)  # is_correct_true: true
+      # is_correct_true: true
+      question = question_fixture(:true_false)
 
       # Test correct answer
       correct_answer = %{"is_true" => true}
@@ -1311,7 +1435,8 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "check_answer_correctness/2 validates cloze answers correctly", %{user: _user} do
-      question = question_fixture(:cloze)  # answers: ["Paris", "Europe"]
+      # answers: ["Paris", "Europe"]
+      question = question_fixture(:cloze)
 
       # Test correct answer (exact case)
       correct_answer = %{"answers" => ["Paris", "Europe"]}
@@ -1331,11 +1456,15 @@ defmodule ZiStudy.QuestionsTest do
 
       # Test wrong number of answers
       wrong_count_answer = %{"answers" => ["Paris"]}
-      assert {:error, :wrong_number_of_answers} = Questions.check_answer_correctness(question.id, wrong_count_answer)
+
+      assert {:error, :wrong_number_of_answers} =
+               Questions.check_answer_correctness(question.id, wrong_count_answer)
 
       # Test too many answers
       extra_answers = %{"answers" => ["Paris", "Europe", "France"]}
-      assert {:error, :wrong_number_of_answers} = Questions.check_answer_correctness(question.id, extra_answers)
+
+      assert {:error, :wrong_number_of_answers} =
+               Questions.check_answer_correctness(question.id, extra_answers)
     end
 
     test "check_answer_correctness/2 validates written answers correctly", %{user: _user} do
@@ -1351,7 +1480,8 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "check_answer_correctness/2 validates EMQ answers correctly", %{user: _user} do
-      question = question_fixture(:emq)  # matches: [[0, 0], [1, 1], [2, 2]]
+      # matches: [[0, 0], [1, 1], [2, 2]]
+      question = question_fixture(:emq)
 
       # Test correct answer (exact order)
       correct_answer = %{"matches" => [[0, 0], [1, 1], [2, 2]]}
@@ -1372,7 +1502,7 @@ defmodule ZiStudy.QuestionsTest do
 
     test "check_answer_correctness/2 handles invalid question ID" do
       answer = %{"selected_index" => 0}
-      assert {:error, :question_not_found} = Questions.check_answer_correctness(999999, answer)
+      assert {:error, :question_not_found} = Questions.check_answer_correctness(999_999, answer)
     end
 
     test "check_answer_correctness/2 handles mismatched answer and question types" do
@@ -1380,11 +1510,15 @@ defmodule ZiStudy.QuestionsTest do
 
       # Try to answer MCQ with true/false answer
       tf_answer = %{"is_true" => true}
-      assert {:error, {:answer_processing_failed, _}} = Questions.check_answer_correctness(mcq_question.id, tf_answer)
+
+      assert {:error, {:answer_processing_failed, _}} =
+               Questions.check_answer_correctness(mcq_question.id, tf_answer)
 
       # Try to answer MCQ with cloze answer
       cloze_answer = %{"answers" => ["some", "answers"]}
-      assert {:error, {:answer_processing_failed, _}} = Questions.check_answer_correctness(mcq_question.id, cloze_answer)
+
+      assert {:error, {:answer_processing_failed, _}} =
+               Questions.check_answer_correctness(mcq_question.id, cloze_answer)
     end
 
     test "check_answer_correctness/2 handles invalid answer format", %{user: _user} do
@@ -1401,8 +1535,6 @@ defmodule ZiStudy.QuestionsTest do
       invalid_type = %{"selected_index" => "not_a_number"}
       assert {:error, _} = Questions.check_answer_correctness(question.id, invalid_type)
     end
-
-
   end
 
   describe "delete_user_answer/2" do
@@ -1412,7 +1544,7 @@ defmodule ZiStudy.QuestionsTest do
       %{user: user, question: question}
     end
 
-        test "delete_user_answer/2 deletes existing user answer", %{user: user, question: question} do
+    test "delete_user_answer/2 deletes existing user answer", %{user: user, question: question} do
       # Create an answer
       _answer = answer_fixture(user, question)
 
@@ -1426,12 +1558,18 @@ defmodule ZiStudy.QuestionsTest do
       assert Questions.get_user_answer(user.id, question.id) == nil
     end
 
-    test "delete_user_answer/2 returns ok when answer doesn't exist", %{user: user, question: question} do
+    test "delete_user_answer/2 returns ok when answer doesn't exist", %{
+      user: user,
+      question: question
+    } do
       # Try to delete non-existent answer
       assert {:ok, :not_found} = Questions.delete_user_answer(user.id, question.id)
     end
 
-    test "delete_user_answer/2 only deletes the specific user's answer", %{user: user, question: question} do
+    test "delete_user_answer/2 only deletes the specific user's answer", %{
+      user: user,
+      question: question
+    } do
       other_user = user_fixture()
 
       # Create answers for both users
@@ -1447,7 +1585,10 @@ defmodule ZiStudy.QuestionsTest do
       assert Questions.get_answer(other_answer.id) != nil
     end
 
-    test "delete_user_answer/2 only deletes the specific question's answer", %{user: user, question: question} do
+    test "delete_user_answer/2 only deletes the specific question's answer", %{
+      user: user,
+      question: question
+    } do
       other_question = question_fixture()
 
       # Create answers for both questions
@@ -1464,11 +1605,11 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "delete_user_answer/2 works with non-existent user", %{question: question} do
-      assert {:ok, :not_found} = Questions.delete_user_answer(999999, question.id)
+      assert {:ok, :not_found} = Questions.delete_user_answer(999_999, question.id)
     end
 
     test "delete_user_answer/2 works with non-existent question", %{user: user} do
-      assert {:ok, :not_found} = Questions.delete_user_answer(user.id, 999999)
+      assert {:ok, :not_found} = Questions.delete_user_answer(user.id, 999_999)
     end
   end
 
@@ -1500,12 +1641,21 @@ defmodule ZiStudy.QuestionsTest do
       }
     end
 
-    test "modifies question sets according to specifications", %{user: user, question: question, set1: set1, set2: set2, set3: set3} do
+    test "modifies question sets according to specifications", %{
+      user: user,
+      question: question,
+      set1: set1,
+      set2: set2,
+      set3: set3
+    } do
       # Initial state: question is in set1 only
       modifications = [
-        {set1.id, false},  # Remove from set1
-        {set2.id, true},   # Add to set2
-        {set3.id, true}    # Add to set3
+        # Remove from set1
+        {set1.id, false},
+        # Add to set2
+        {set2.id, true},
+        # Add to set3
+        {set3.id, true}
       ]
 
       assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
@@ -1521,11 +1671,18 @@ defmodule ZiStudy.QuestionsTest do
       assert set3.id in current_sets
     end
 
-    test "handles no-op modifications correctly", %{user: user, question: question, set1: set1, set2: set2} do
+    test "handles no-op modifications correctly", %{
+      user: user,
+      question: question,
+      set1: set1,
+      set2: set2
+    } do
       # Modifications that don't change anything
       modifications = [
-        {set1.id, true},   # Already in set1
-        {set2.id, false}   # Already not in set2
+        # Already in set1
+        {set1.id, true},
+        # Already not in set2
+        {set2.id, false}
       ]
 
       assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
@@ -1540,11 +1697,18 @@ defmodule ZiStudy.QuestionsTest do
       assert set2.id not in current_sets
     end
 
-    test "only modifies sets owned by the user", %{user: user, question: question, set1: set1, other_set: other_set} do
+    test "only modifies sets owned by the user", %{
+      user: user,
+      question: question,
+      set1: set1,
+      other_set: other_set
+    } do
       # Try to modify both owned and non-owned sets
       modifications = [
-        {set1.id, false},     # User's set - should work
-        {other_set.id, true}  # Other user's set - should be ignored
+        # User's set - should work
+        {set1.id, false},
+        # Other user's set - should be ignored
+        {other_set.id, true}
       ]
 
       assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
@@ -1555,7 +1719,8 @@ defmodule ZiStudy.QuestionsTest do
       # Verify only user's set was modified
       current_sets = Questions.get_question_sets_containing_question(question.id)
       assert set1.id not in current_sets
-      assert other_set.id not in current_sets  # Not added because not owned
+      # Not added because not owned
+      assert other_set.id not in current_sets
     end
 
     test "handles empty modifications list", %{user: user, question: question} do
@@ -1566,10 +1731,16 @@ defmodule ZiStudy.QuestionsTest do
       assert result.modified_sets == []
     end
 
-    test "handles non-existent question sets gracefully", %{user: user, question: question, set1: set1} do
+    test "handles non-existent question sets gracefully", %{
+      user: user,
+      question: question,
+      set1: set1
+    } do
       modifications = [
-        {set1.id, false},   # Valid set
-        {999999, true}      # Non-existent set
+        # Valid set
+        {set1.id, false},
+        # Non-existent set
+        {999_999, true}
       ]
 
       # Should still process the valid modification
@@ -1588,7 +1759,9 @@ defmodule ZiStudy.QuestionsTest do
         {set2.id, true}
       ]
 
-      assert {:ok, result} = Questions.modify_question_sets(user.id, new_question.id, modifications)
+      assert {:ok, result} =
+               Questions.modify_question_sets(user.id, new_question.id, modifications)
+
       assert result.added_to_sets == 2
       assert result.removed_from_sets == 0
       assert result.total_modified == 2
@@ -1599,10 +1772,17 @@ defmodule ZiStudy.QuestionsTest do
       assert set2.id in current_sets
     end
 
-    test "returns correct modified_sets information", %{user: user, question: question, set1: set1, set2: set2} do
+    test "returns correct modified_sets information", %{
+      user: user,
+      question: question,
+      set1: set1,
+      set2: set2
+    } do
       modifications = [
-        {set1.id, false},  # Remove
-        {set2.id, true}    # Add
+        # Remove
+        {set1.id, false},
+        # Add
+        {set2.id, true}
       ]
 
       assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
@@ -1615,9 +1795,10 @@ defmodule ZiStudy.QuestionsTest do
 
     test "handles large number of modifications efficiently", %{user: user, question: question} do
       # Create many sets
-      sets = Enum.map(1..20, fn i ->
-        question_set_fixture(user, %{title: "Set #{i}"})
-      end)
+      sets =
+        Enum.map(1..20, fn i ->
+          question_set_fixture(user, %{title: "Set #{i}"})
+        end)
 
       # Add question to all sets
       modifications = Enum.map(sets, fn set -> {set.id, true} end)
@@ -1630,6 +1811,7 @@ defmodule ZiStudy.QuestionsTest do
       current_sets = Questions.get_question_sets_containing_question(question.id)
       set_ids = Enum.map(sets, & &1.id)
       assert length(current_sets) >= 20
+
       Enum.each(set_ids, fn set_id ->
         assert set_id in current_sets
       end)
@@ -1663,29 +1845,45 @@ defmodule ZiStudy.QuestionsTest do
       }
     end
 
-    test "returns owned sets with correct containment information", %{user: user, question: question, set1: set1, set2: set2, set3: set3} do
-      {results, total_count} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id
-      )
+    test "returns owned sets with correct containment information", %{
+      user: user,
+      question: question,
+      set1: set1,
+      set2: set2,
+      set3: set3
+    } do
+      {results, total_count} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id
+        )
 
       assert total_count == 3
       assert length(results) == 3
 
       # Convert to a map for easier testing
-      results_map = Map.new(results, fn %{question_set: qs, contains_question: contains} ->
-        {qs.id, contains}
-      end)
+      results_map =
+        Map.new(results, fn %{question_set: qs, contains_question: contains} ->
+          {qs.id, contains}
+        end)
 
-      assert Map.get(results_map, set1.id) == true   # Contains question
-      assert Map.get(results_map, set2.id) == false  # Doesn't contain question
-      assert Map.get(results_map, set3.id) == true   # Contains question
-      refute Map.has_key?(results_map, :other_set)   # Other user's set not included
+      # Contains question
+      assert Map.get(results_map, set1.id) == true
+      # Doesn't contain question
+      assert Map.get(results_map, set2.id) == false
+      # Contains question
+      assert Map.get(results_map, set3.id) == true
+      # Other user's set not included
+      refute Map.has_key?(results_map, :other_set)
     end
 
     test "supports search functionality", %{user: user, question: question} do
-      {results, _total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id, "First"
-      )
+      {results, _total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id,
+          "First"
+        )
 
       assert length(results) == 1
       assert List.first(results).question_set.description == "First set"
@@ -1693,32 +1891,52 @@ defmodule ZiStudy.QuestionsTest do
 
     test "supports pagination", %{user: user, question: question} do
       # Test with page size of 2
-      {results_page1, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id, "", 1, 2
-      )
+      {results_page1, total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id,
+          "",
+          1,
+          2
+        )
 
-      {results_page2, _} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id, "", 2, 2
-      )
+      {results_page2, _} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id,
+          "",
+          2,
+          2
+        )
 
       assert total == 3
       assert length(results_page1) == 2
       assert length(results_page2) == 1
     end
 
-    test "only returns sets owned by the user", %{user: user, other_user: other_user, question: question} do
+    test "only returns sets owned by the user", %{
+      user: user,
+      other_user: other_user,
+      question: question
+    } do
       # Test with user
-      {user_results, user_total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id
-      )
+      {user_results, user_total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id
+        )
 
       # Test with other user
-      {other_results, other_total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        other_user.id, question.id
-      )
+      {other_results, other_total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          other_user.id,
+          question.id
+        )
 
-      assert user_total == 3  # User has 3 sets
-      assert other_total == 1  # Other user has 1 set
+      # User has 3 sets
+      assert user_total == 3
+      # Other user has 1 set
+      assert other_total == 1
 
       user_set_ids = Enum.map(user_results, fn %{question_set: qs} -> qs.id end)
       other_set_ids = Enum.map(other_results, fn %{question_set: qs} -> qs.id end)
@@ -1730,9 +1948,11 @@ defmodule ZiStudy.QuestionsTest do
     test "works correctly when question is not in any sets", %{user: user} do
       new_question = question_fixture()
 
-      {results, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, new_question.id
-      )
+      {results, total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          new_question.id
+        )
 
       assert total == 3
       assert length(results) == 3
@@ -1746,18 +1966,22 @@ defmodule ZiStudy.QuestionsTest do
     test "handles user with no question sets", %{question: question} do
       user_with_no_sets = user_fixture()
 
-      {results, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user_with_no_sets.id, question.id
-      )
+      {results, total} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user_with_no_sets.id,
+          question.id
+        )
 
       assert total == 0
       assert results == []
     end
 
     test "preloads associations correctly", %{user: user, question: question} do
-      {results, _} = Questions.get_owned_question_sets_with_containing_information_for_question(
-        user.id, question.id
-      )
+      {results, _} =
+        Questions.get_owned_question_sets_with_containing_information_for_question(
+          user.id,
+          question.id
+        )
 
       first_result = List.first(results)
       question_set = first_result.question_set

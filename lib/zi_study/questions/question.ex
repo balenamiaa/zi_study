@@ -32,17 +32,19 @@ defmodule ZiStudy.Questions.Question do
         question_type = Map.get(data, "question_type") || Map.get(data, :question_type)
 
         # EMQ questions use 'instructions' instead of 'question_text'
-        text_field = case question_type do
-          "emq" -> Map.get(data, "instructions") || Map.get(data, :instructions)
-          _ -> Map.get(data, "question_text") || Map.get(data, :question_text)
-        end
+        text_field =
+          case question_type do
+            "emq" -> Map.get(data, "instructions") || Map.get(data, :instructions)
+            _ -> Map.get(data, "question_text") || Map.get(data, :question_text)
+          end
 
-        changeset = if is_nil(text_field) or text_field == "" do
-          field_name = if question_type == "emq", do: "instructions", else: "question_text"
-          add_error(changeset, :data, "#{field_name} is required")
-        else
-          changeset
-        end
+        changeset =
+          if is_nil(text_field) or text_field == "" do
+            field_name = if question_type == "emq", do: "instructions", else: "question_text"
+            add_error(changeset, :data, "#{field_name} is required")
+          else
+            changeset
+          end
 
         if is_nil(question_type) do
           add_error(changeset, :data, "question_type is required")
@@ -59,7 +61,9 @@ defmodule ZiStudy.Questions.Question do
 
       data ->
         difficulty = Map.get(data, "difficulty") || Map.get(data, :difficulty)
-        type = Map.get(data, "question_type") || Map.get(data, :question_type) || Map.get(data, :type)
+
+        type =
+          Map.get(data, "question_type") || Map.get(data, :question_type) || Map.get(data, :type)
 
         changeset
         |> put_change(:difficulty, difficulty)
