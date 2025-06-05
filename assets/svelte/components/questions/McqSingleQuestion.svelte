@@ -2,6 +2,7 @@
     import QuestionToolbar from "./QuestionToolbar.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
     import RadioWithSpinner from "./RadioWithSpinner.svelte";
+    import { setupQuestionEvents, createAnswerResetHandler, createSubmissionHandler } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -17,16 +18,15 @@
     let selectedOption = $state(userAnswer?.data?.selected_index ?? null);
     let showExplanation = $state(false);
     let isSubmitting = $state(false);
-    let answerSubmittedHandleRef = $state(null);
-    let answerResetHandleRef = $state(null);
 
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
+
+    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
 
     function handleOptionSelect(index) {
         if (!isAnswered && !isSubmitting) {
             selectedOption = index;
-            isSubmitting = true;
-            submitAnswer({
+            handleSubmission({
                 selected_index: index,
             });
         }
@@ -40,34 +40,13 @@
         isSubmitting = false;
     }
 
-    function handleAnswerReset(payload) {
-        const eventQuestionId = payload.question_id;
-        const currentQuestionId =
-            data?.id?.toString() || questionNumber?.toString();
-        if (eventQuestionId === currentQuestionId) {
-            selectedOption = null;
-            isSubmitting = false;
-        }
-    }
+    const handleAnswerReset = createAnswerResetHandler(data, questionNumber, () => {
+        selectedOption = null;
+        isSubmitting = false;
+    });
 
     $effect(() => {
-        if (live) {
-            answerSubmittedHandleRef = live.handleEvent(
-                "answer_submitted",
-                handleAnswerSubmitted,
-            );
-            answerResetHandleRef = live.handleEvent(
-                "answer_reset",
-                handleAnswerReset,
-            );
-
-            return () => {
-                if (live) {
-                    live.removeHandleEvent(answerSubmittedHandleRef);
-                    live.removeHandleEvent(answerResetHandleRef);
-                }
-            };
-        }
+        return setupQuestionEvents(live, handleAnswerSubmitted, handleAnswerReset);
     });
 </script>
 
@@ -80,7 +59,7 @@
         hasExplanation={!!data.explanation}
         {isAnswered}
         bind:showExplanation
-        onclearAnswer={handleClearAnswer}
+        onClearAnswer={handleClearAnswer}
         {questionId}
         {live}
         {userQuestionSets}

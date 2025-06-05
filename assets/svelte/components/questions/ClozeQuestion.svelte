@@ -3,6 +3,7 @@
     import ExplanationPanel from "./ExplanationPanel.svelte";
     import ClozeInput from "./ClozeInput.svelte";
     import { parseClozeText } from "../../utils/clozeUtils.js";
+    import { setupQuestionEvents, createAnswerResetHandler, createSubmissionHandler, isAnswerValid } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -11,6 +12,8 @@
         clearAnswer,
         questionNumber,
         live,
+        questionId = null,
+        userQuestionSets = null,
     } = $props();
 
     let { clozes, processedText } = parseClozeText(data.question_text);
@@ -21,19 +24,15 @@
 
     let showExplanation = $state(false);
     let isSubmitting = $state(false);
-    let answerSubmittedHandleRef = $state(null);
-    let answerResetHandleRef = $state(null);
 
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
-    let allAnswered = $derived(
-        clozes.length > 0 &&
-            clozeAnswers.every((answer) => answer.trim() !== ""),
-    );
+    let allAnswered = $derived(isAnswerValid(clozeAnswers, 'cloze'));
+
+    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
 
     function checkAnswer() {
         if (allAnswered && !isSubmitting) {
-            isSubmitting = true;
-            submitAnswer({
+            handleSubmission({
                 answers: clozeAnswers,
             });
         }
@@ -44,39 +43,17 @@
         clozeAnswers = new Array(clozes.length).fill("");
     }
 
-    function handleAnswerReset(payload) {
-        const eventQuestionId = payload.question_id;
-        const currentQuestionId =
-            data?.id?.toString() || questionNumber?.toString();
-        if (eventQuestionId === currentQuestionId) {
-            clozeAnswers = new Array(clozes.length).fill("");
-            isSubmitting = false;
-        }
-    }
+    const handleAnswerReset = createAnswerResetHandler(data, questionNumber, () => {
+        clozeAnswers = new Array(clozes.length).fill("");
+        isSubmitting = false;
+    });
 
     function handleAnswerSubmitted() {
         isSubmitting = false;
     }
 
     $effect(() => {
-        if (live) {
-            answerSubmittedHandleRef = live.handleEvent(
-                "answer_submitted",
-                handleAnswerSubmitted,
-            );
-
-            answerResetHandleRef = live.handleEvent(
-                "answer_reset",
-                handleAnswerReset,
-            );
-
-            return () => {
-                if (live) {
-                    live.removeHandleEvent(answerSubmittedHandleRef);
-                    live.removeHandleEvent(answerResetHandleRef);
-                }
-            };
-        }
+        return setupQuestionEvents(live, handleAnswerSubmitted, handleAnswerReset);
     });
 
     function renderClozeText() {
@@ -127,7 +104,10 @@
         hasExplanation={!!data.explanation}
         {isAnswered}
         bind:showExplanation
-        onclearAnswer={handleClearAnswer}
+        onClearAnswer={handleClearAnswer}
+        {questionId}
+        {userQuestionSets}
+        {live}
     >
         {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />

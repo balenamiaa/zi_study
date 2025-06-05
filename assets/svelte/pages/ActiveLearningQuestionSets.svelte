@@ -19,13 +19,11 @@
         questionSets?.filter(
             (qs) =>
                 qs.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                qs.description
-                    ?.toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ||
+                qs.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 qs.tags.some((tag) =>
-                    tag.name.toLowerCase().includes(searchQuery.toLowerCase()),
-                ),
-        ) || [],
+                    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+        ) || []
     );
 
     function toggleEditMode() {
@@ -41,12 +39,12 @@
         } else {
             selectedSetIds.add(setId);
         }
-        selectedSetIds = new Set(selectedSetIds); // Trigger reactivity
+        selectedSetIds = new Set(selectedSetIds);
     }
 
     function selectAll() {
-        const ownedSets = filteredQuestionSets.filter(qs => qs.owner !== null);
-        ownedSets.forEach(qs => selectedSetIds.add(qs.id));
+        const ownedSets = filteredQuestionSets.filter((qs) => qs.owner !== null);
+        ownedSets.forEach((qs) => selectedSetIds.add(qs.id));
         selectedSetIds = new Set(selectedSetIds);
     }
 
@@ -58,10 +56,11 @@
     function handleBulkDelete() {
         if (selectedSetIds.size === 0) return;
 
-        if (confirm(`Are you sure you want to delete ${selectedSetIds.size} question set(s)? This action cannot be undone.`)) {
+        const message = `Are you sure you want to delete ${selectedSetIds.size} question set(s)? This action cannot be undone.`;
+        if (confirm(message)) {
             const questionSetIdsArray = Array.from(selectedSetIds).map(String);
-            live.pushEvent("bulk_delete_question_sets", { 
-                question_set_ids: questionSetIdsArray 
+            live.pushEvent("bulk_delete_question_sets", {
+                question_set_ids: questionSetIdsArray,
             });
             selectedSetIds.clear();
         }
@@ -84,18 +83,15 @@
         live.pushEvent("create_question_set", {
             title: newSetTitle.trim(),
             description: newSetDescription.trim(),
-            is_private: newSetIsPrivate
+            is_private: newSetIsPrivate,
         });
 
         closeCreateModal();
     }
-
-    console.log("Question Sets:", questionSets);
 </script>
 
 <div class="min-h-screen bg-base-100 p-4 md:p-6 lg:p-8">
     <div class="max-w-7xl mx-auto">
-        <!-- Header -->
         <div class="mb-8">
             <div class="flex items-center justify-between mb-4">
                 <div>
@@ -106,17 +102,13 @@
                         Discover and practice with our collection of question sets
                     </p>
                 </div>
-                
+
                 <div class="flex items-center gap-2">
-                    <Button
-                        variant="primary"
-                        onclick={openCreateModal}
-                        class="gap-2"
-                    >
+                    <Button variant="primary" onclick={openCreateModal} class="gap-2">
                         <PlusIcon class="h-4 w-4" />
                         Create Set
                     </Button>
-                    
+
                     <Button
                         variant={isEditMode ? "error" : "outline"}
                         onclick={toggleEditMode}
@@ -129,7 +121,6 @@
             </div>
         </div>
 
-        <!-- Search and Edit Controls -->
         <div class="mb-8 space-y-4">
             <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <label for="search" class="input relative flex-1 max-w-md">
@@ -149,7 +140,6 @@
                 </div>
             </div>
 
-            <!-- Edit Mode Controls -->
             {#if isEditMode}
                 <div class="bg-warning/10 border border-warning/30 rounded-lg p-4">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -157,7 +147,7 @@
                             <span class="text-sm font-medium text-base-content">
                                 {selectedSetIds.size} set(s) selected
                             </span>
-                            
+
                             <div class="flex gap-2">
                                 <Button variant="outline" size="xs" onclick={selectAll}>
                                     Select All Owned
@@ -185,12 +175,9 @@
             {/if}
         </div>
 
-        <!-- Question Sets Grid -->
         {#if filteredQuestionSets.length === 0}
             <div class="text-center py-16">
-                <div
-                    class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center"
-                >
+                <div class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center">
                     <svg
                         class="w-12 h-12 text-base-content/30"
                         xmlns="http://www.w3.org/2000/svg"
@@ -210,39 +197,27 @@
                     No question sets found
                 </h3>
                 <p class="text-base-content/60">
-                    Try adjusting your search or check back later for new
-                    content.
+                    Try adjusting your search or check back later for new content.
                 </p>
             </div>
         {:else}
-            <div
-                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-            >
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {#each filteredQuestionSets as questionSet (questionSet.id)}
                     {@const isSelected = selectedSetIds.has(questionSet.id)}
-                    {@const canSelect = questionSet.owner !== null} <!-- Only owned sets can be selected -->
-                    
-                    <div class="relative">
-                        <!-- Selection checkbox in edit mode -->
-                        {#if isEditMode && canSelect}
-                            <div class="absolute top-2 left-2 z-10">
-                                <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onchange={() => toggleSetSelection(questionSet.id)}
-                                    class="checkbox checkbox-primary"
-                                />
-                            </div>
-                        {/if}
-                        
-                        <!-- Card with selection styling -->
-                        <div class="transition-all duration-200 {isEditMode && isSelected 
-                            ? 'ring-2 ring-primary ring-offset-2' 
-                            : ''} {isEditMode && !canSelect 
-                            ? 'opacity-50' 
-                            : ''}">
-                            <QuestionSetCard {questionSet} />
-                        </div>
+                    {@const canSelect = questionSet.owner !== null}
+
+                    <div
+                        class="h-full transition-all duration-200 {isEditMode && !canSelect
+                            ? 'opacity-50'
+                            : ''} {isEditMode && canSelect
+                            ? 'cursor-pointer'
+                            : ''}"
+                        onclick={() => isEditMode && canSelect && toggleSetSelection(questionSet.id)}
+                        onkeydown={(e) => e.key === "Enter" && isEditMode && canSelect && toggleSetSelection(questionSet.id)}
+                        tabindex={isEditMode && canSelect ? 0 : undefined}
+                        role={isEditMode && canSelect ? "button" : undefined}
+                    >
+                        <QuestionSetCard {questionSet} isSelected={isEditMode && isSelected} />
                     </div>
                 {/each}
             </div>
@@ -250,8 +225,12 @@
     </div>
 </div>
 
-<!-- Create Question Set Modal -->
-<Modal isOpen={showCreateModal} onClose={closeCreateModal} title="Create New Question Set" size="md">
+<Modal
+    isOpen={showCreateModal}
+    onClose={closeCreateModal}
+    title="Create New Question Set"
+    size="md"
+>
     <div class="space-y-4">
         <TextInput
             bind:value={newSetTitle}
@@ -262,7 +241,7 @@
         />
 
         <div class="form-control">
-            <label class="label">
+            <label for="newSetDescription" class="label">
                 <span class="label-text">Description (optional)</span>
             </label>
             <textarea
@@ -284,17 +263,17 @@
             </label>
             <div class="label">
                 <span class="label-text-alt text-base-content/60">
-                    {newSetIsPrivate ? "Private - Only you can see this set" : "Public - Everyone can see this set"}
+                    {newSetIsPrivate
+                        ? "Private - Only you can see this set"
+                        : "Public - Everyone can see this set"}
                 </span>
             </div>
         </div>
 
         <div class="flex justify-end gap-2 pt-4">
-            <Button variant="ghost" onclick={closeCreateModal}>
-                Cancel
-            </Button>
-            <Button 
-                variant="primary" 
+            <Button variant="ghost" onclick={closeCreateModal}>Cancel</Button>
+            <Button
+                variant="primary"
                 onclick={handleCreateSet}
                 disabled={!newSetTitle.trim()}
             >

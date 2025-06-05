@@ -1,6 +1,7 @@
 <script>
     import QuestionToolbar from "./QuestionToolbar.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
+    import { setupQuestionEvents, createAnswerResetHandler, createSubmissionHandler, isAnswerValid } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -9,13 +10,13 @@
         clearAnswer,
         questionNumber,
         live,
+        questionId = null,
+        userQuestionSets = null,
     } = $props();
 
     let selectedMatches = $state(userAnswer?.data?.matches || []);
     let showExplanation = $state(false);
     let isSubmitting = $state(false);
-    let answerSubmittedHandleRef = $state(null);
-    let answerResetHandleRef = $state(null);
 
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let allAnswered = $derived(
@@ -51,10 +52,11 @@
         }
     }
 
+    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
+
     function checkAnswer() {
         if (allAnswered && !isSubmitting) {
-            isSubmitting = true;
-            submitAnswer({
+            handleSubmission({
                 matches: selectedMatches,
             });
         }
@@ -68,35 +70,13 @@
         isSubmitting = false;
     }
 
-    function handleAnswerReset(payload) {
-        const eventQuestionId = payload.question_id;
-        const currentQuestionId =
-            data?.id?.toString() || questionNumber?.toString();
-        if (eventQuestionId === currentQuestionId) {
-            selectedMatches = [];
-            isSubmitting = false;
-        }
-    }
+    const handleAnswerReset = createAnswerResetHandler(data, questionNumber, () => {
+        selectedMatches = [];
+        isSubmitting = false;
+    });
 
     $effect(() => {
-        if (live) {
-            answerSubmittedHandleRef = live.handleEvent(
-                "answer_submitted",
-                handleAnswerSubmitted,
-            );
-
-            answerResetHandleRef = live.handleEvent(
-                "answer_reset",
-                handleAnswerReset,
-            );
-
-            return () => {
-                if (live) {
-                    live.removeHandleEvent(answerSubmittedHandleRef);
-                    live.removeHandleEvent(answerResetHandleRef);
-                }
-            };
-        }
+        return setupQuestionEvents(live, handleAnswerSubmitted, handleAnswerReset);
     });
 
     function getSelectedOptionForPremise(premiseIndex) {
@@ -143,7 +123,10 @@
         hasExplanation={!!data.explanation}
         {isAnswered}
         bind:showExplanation
-        onclearAnswer={handleClearAnswer}
+        onClearAnswer={handleClearAnswer}
+        {questionId}
+        {live}
+        {userQuestionSets}
     >
         {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />

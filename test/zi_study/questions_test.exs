@@ -19,7 +19,7 @@ defmodule ZiStudy.QuestionsTest do
       refute private_set in sets
     end
 
-    test "list_question_sets/2 with user_id returns user's sets filtered by privacy" do
+    test "list_question_sets/2 with user_id and show_only_owned parameter" do
       user = user_fixture()
       other_user = user_fixture()
 
@@ -28,19 +28,19 @@ defmodule ZiStudy.QuestionsTest do
       other_public = question_set_fixture(other_user, %{is_private: false})
       other_private = question_set_fixture(other_user, %{is_private: true})
 
-      # Get user's public sets
-      public_sets = Questions.list_question_sets(user.id, true)
-      assert user_public in public_sets
-      refute user_private in public_sets
-      refute other_public in public_sets
-      refute other_private in public_sets
+      # Get only user's owned sets (both private and public)
+      owned_sets = Questions.list_question_sets(user.id, true)
+      assert user_public in owned_sets
+      assert user_private in owned_sets
+      refute other_public in owned_sets  # Other user's sets should not be included
+      refute other_private in owned_sets
 
-      # Get user's private sets
-      private_sets = Questions.list_question_sets(user.id, false)
-      refute user_public in private_sets
-      assert user_private in private_sets
-      refute other_public in private_sets
-      refute other_private in private_sets
+      # Get user's owned sets + all public sets from others
+      all_accessible_sets = Questions.list_question_sets(user.id, false)
+      assert user_public in all_accessible_sets
+      assert user_private in all_accessible_sets
+      assert other_public in all_accessible_sets  # Public sets from other users should be included
+      refute other_private in all_accessible_sets
     end
 
     test "get_question_set/1 returns the question set with id" do
@@ -1310,7 +1310,7 @@ defmodule ZiStudy.QuestionsTest do
       assert {:ok, false} = Questions.check_answer_correctness(question.id, legacy_incorrect)
     end
 
-    test "check_answer_correctness/2 validates cloze answers correctly", %{user: user} do
+    test "check_answer_correctness/2 validates cloze answers correctly", %{user: _user} do
       question = question_fixture(:cloze)  # answers: ["Paris", "Europe"]
 
       # Test correct answer (exact case)
@@ -1338,7 +1338,7 @@ defmodule ZiStudy.QuestionsTest do
       assert {:error, :wrong_number_of_answers} = Questions.check_answer_correctness(question.id, extra_answers)
     end
 
-    test "check_answer_correctness/2 validates written answers correctly", %{user: user} do
+    test "check_answer_correctness/2 validates written answers correctly", %{user: _user} do
       question = question_fixture(:written)
 
       # Written answers always return false (require manual grading)
@@ -1350,7 +1350,7 @@ defmodule ZiStudy.QuestionsTest do
       assert {:ok, false} = Questions.check_answer_correctness(question.id, legacy_answer)
     end
 
-    test "check_answer_correctness/2 validates EMQ answers correctly", %{user: user} do
+    test "check_answer_correctness/2 validates EMQ answers correctly", %{user: _user} do
       question = question_fixture(:emq)  # matches: [[0, 0], [1, 1], [2, 2]]
 
       # Test correct answer (exact order)
@@ -1387,7 +1387,7 @@ defmodule ZiStudy.QuestionsTest do
       assert {:error, {:answer_processing_failed, _}} = Questions.check_answer_correctness(mcq_question.id, cloze_answer)
     end
 
-    test "check_answer_correctness/2 handles invalid answer format", %{user: user} do
+    test "check_answer_correctness/2 handles invalid answer format", %{user: _user} do
       question = question_fixture(:mcq_single)
 
       # Empty answer
@@ -1435,7 +1435,7 @@ defmodule ZiStudy.QuestionsTest do
       other_user = user_fixture()
 
       # Create answers for both users
-      user_answer = answer_fixture(user, question)
+      _user_answer = answer_fixture(user, question)
       other_answer = answer_fixture(other_user, question)
 
       # Delete first user's answer
@@ -1451,7 +1451,7 @@ defmodule ZiStudy.QuestionsTest do
       other_question = question_fixture()
 
       # Create answers for both questions
-      answer1 = answer_fixture(user, question)
+      _answer1 = answer_fixture(user, question)
       answer2 = answer_fixture(user, other_question)
 
       # Delete answer for first question
@@ -1469,6 +1469,303 @@ defmodule ZiStudy.QuestionsTest do
 
     test "delete_user_answer/2 works with non-existent question", %{user: user} do
       assert {:ok, :not_found} = Questions.delete_user_answer(user.id, 999999)
+    end
+  end
+
+  describe "modify_question_sets/3" do
+    setup do
+      user = user_fixture()
+      other_user = user_fixture()
+      question = question_fixture()
+
+      # Create question sets owned by user
+      set1 = question_set_fixture(user, %{title: "Set 1"})
+      set2 = question_set_fixture(user, %{title: "Set 2"})
+      set3 = question_set_fixture(user, %{title: "Set 3"})
+
+      # Create a set owned by other user
+      other_set = question_set_fixture(other_user, %{title: "Other Set"})
+
+      # Add question to set1 initially
+      Questions.add_questions_to_set(set1, [question], user.id)
+
+      %{
+        user: user,
+        other_user: other_user,
+        question: question,
+        set1: set1,
+        set2: set2,
+        set3: set3,
+        other_set: other_set
+      }
+    end
+
+    test "modifies question sets according to specifications", %{user: user, question: question, set1: set1, set2: set2, set3: set3} do
+      # Initial state: question is in set1 only
+      modifications = [
+        {set1.id, false},  # Remove from set1
+        {set2.id, true},   # Add to set2
+        {set3.id, true}    # Add to set3
+      ]
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+      assert result.added_to_sets == 2
+      assert result.removed_from_sets == 1
+      assert result.total_modified == 3
+      assert length(result.modified_sets) == 3
+
+      # Verify the modifications were applied
+      current_sets = Questions.get_question_sets_containing_question(question.id)
+      assert set1.id not in current_sets
+      assert set2.id in current_sets
+      assert set3.id in current_sets
+    end
+
+    test "handles no-op modifications correctly", %{user: user, question: question, set1: set1, set2: set2} do
+      # Modifications that don't change anything
+      modifications = [
+        {set1.id, true},   # Already in set1
+        {set2.id, false}   # Already not in set2
+      ]
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+      assert result.added_to_sets == 0
+      assert result.removed_from_sets == 0
+      assert result.total_modified == 0
+      assert result.modified_sets == []
+
+      # Verify state unchanged
+      current_sets = Questions.get_question_sets_containing_question(question.id)
+      assert set1.id in current_sets
+      assert set2.id not in current_sets
+    end
+
+    test "only modifies sets owned by the user", %{user: user, question: question, set1: set1, other_set: other_set} do
+      # Try to modify both owned and non-owned sets
+      modifications = [
+        {set1.id, false},     # User's set - should work
+        {other_set.id, true}  # Other user's set - should be ignored
+      ]
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+      assert result.removed_from_sets == 1
+      assert result.added_to_sets == 0
+      assert result.total_modified == 1
+
+      # Verify only user's set was modified
+      current_sets = Questions.get_question_sets_containing_question(question.id)
+      assert set1.id not in current_sets
+      assert other_set.id not in current_sets  # Not added because not owned
+    end
+
+    test "handles empty modifications list", %{user: user, question: question} do
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, [])
+      assert result.added_to_sets == 0
+      assert result.removed_from_sets == 0
+      assert result.total_modified == 0
+      assert result.modified_sets == []
+    end
+
+    test "handles non-existent question sets gracefully", %{user: user, question: question, set1: set1} do
+      modifications = [
+        {set1.id, false},   # Valid set
+        {999999, true}      # Non-existent set
+      ]
+
+      # Should still process the valid modification
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+      assert result.removed_from_sets == 1
+      assert result.added_to_sets == 0
+      assert result.total_modified == 1
+    end
+
+    test "works with question not initially in any sets", %{user: user, set1: set1, set2: set2} do
+      # Create a new question not in any sets
+      new_question = question_fixture()
+
+      modifications = [
+        {set1.id, true},
+        {set2.id, true}
+      ]
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, new_question.id, modifications)
+      assert result.added_to_sets == 2
+      assert result.removed_from_sets == 0
+      assert result.total_modified == 2
+
+      # Verify question was added to both sets
+      current_sets = Questions.get_question_sets_containing_question(new_question.id)
+      assert set1.id in current_sets
+      assert set2.id in current_sets
+    end
+
+    test "returns correct modified_sets information", %{user: user, question: question, set1: set1, set2: set2} do
+      modifications = [
+        {set1.id, false},  # Remove
+        {set2.id, true}    # Add
+      ]
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+
+      # Check that modified_sets contains the correct maps
+      modified_sets_by_id = Enum.group_by(result.modified_sets, & &1.set_id)
+      assert Map.get(modified_sets_by_id, set1.id) |> List.first() |> Map.get(:action) == false
+      assert Map.get(modified_sets_by_id, set2.id) |> List.first() |> Map.get(:action) == true
+    end
+
+    test "handles large number of modifications efficiently", %{user: user, question: question} do
+      # Create many sets
+      sets = Enum.map(1..20, fn i ->
+        question_set_fixture(user, %{title: "Set #{i}"})
+      end)
+
+      # Add question to all sets
+      modifications = Enum.map(sets, fn set -> {set.id, true} end)
+
+      assert {:ok, result} = Questions.modify_question_sets(user.id, question.id, modifications)
+      assert result.added_to_sets == 20
+      assert result.total_modified == 20
+
+      # Verify all sets contain the question
+      current_sets = Questions.get_question_sets_containing_question(question.id)
+      set_ids = Enum.map(sets, & &1.id)
+      assert length(current_sets) >= 20
+      Enum.each(set_ids, fn set_id ->
+        assert set_id in current_sets
+      end)
+    end
+  end
+
+  describe "get_owned_question_sets_with_containing_information_for_question/5" do
+    setup do
+      user = user_fixture()
+      other_user = user_fixture()
+      question = question_fixture()
+
+      # Create question sets
+      set1 = question_set_fixture(user, %{title: "User Set 1", description: "First set"})
+      set2 = question_set_fixture(user, %{title: "User Set 2", description: "Second set"})
+      set3 = question_set_fixture(user, %{title: "User Set 3", description: "Third set"})
+      other_set = question_set_fixture(other_user, %{title: "Other User Set"})
+
+      # Add question to set1 and set3
+      Questions.add_questions_to_set(set1, [question], user.id)
+      Questions.add_questions_to_set(set3, [question], user.id)
+
+      %{
+        user: user,
+        other_user: other_user,
+        question: question,
+        set1: set1,
+        set2: set2,
+        set3: set3,
+        other_set: other_set
+      }
+    end
+
+    test "returns owned sets with correct containment information", %{user: user, question: question, set1: set1, set2: set2, set3: set3} do
+      {results, total_count} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id
+      )
+
+      assert total_count == 3
+      assert length(results) == 3
+
+      # Convert to a map for easier testing
+      results_map = Map.new(results, fn %{question_set: qs, contains_question: contains} ->
+        {qs.id, contains}
+      end)
+
+      assert Map.get(results_map, set1.id) == true   # Contains question
+      assert Map.get(results_map, set2.id) == false  # Doesn't contain question
+      assert Map.get(results_map, set3.id) == true   # Contains question
+      refute Map.has_key?(results_map, :other_set)   # Other user's set not included
+    end
+
+    test "supports search functionality", %{user: user, question: question} do
+      {results, _total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id, "First"
+      )
+
+      assert length(results) == 1
+      assert List.first(results).question_set.description == "First set"
+    end
+
+    test "supports pagination", %{user: user, question: question} do
+      # Test with page size of 2
+      {results_page1, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id, "", 1, 2
+      )
+
+      {results_page2, _} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id, "", 2, 2
+      )
+
+      assert total == 3
+      assert length(results_page1) == 2
+      assert length(results_page2) == 1
+    end
+
+    test "only returns sets owned by the user", %{user: user, other_user: other_user, question: question} do
+      # Test with user
+      {user_results, user_total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id
+      )
+
+      # Test with other user
+      {other_results, other_total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        other_user.id, question.id
+      )
+
+      assert user_total == 3  # User has 3 sets
+      assert other_total == 1  # Other user has 1 set
+
+      user_set_ids = Enum.map(user_results, fn %{question_set: qs} -> qs.id end)
+      other_set_ids = Enum.map(other_results, fn %{question_set: qs} -> qs.id end)
+
+      # No overlap between user's and other user's results
+      assert MapSet.disjoint?(MapSet.new(user_set_ids), MapSet.new(other_set_ids))
+    end
+
+    test "works correctly when question is not in any sets", %{user: user} do
+      new_question = question_fixture()
+
+      {results, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, new_question.id
+      )
+
+      assert total == 3
+      assert length(results) == 3
+
+      # All should have contains_question = false
+      Enum.each(results, fn %{contains_question: contains} ->
+        assert contains == false
+      end)
+    end
+
+    test "handles user with no question sets", %{question: question} do
+      user_with_no_sets = user_fixture()
+
+      {results, total} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user_with_no_sets.id, question.id
+      )
+
+      assert total == 0
+      assert results == []
+    end
+
+    test "preloads associations correctly", %{user: user, question: question} do
+      {results, _} = Questions.get_owned_question_sets_with_containing_information_for_question(
+        user.id, question.id
+      )
+
+      first_result = List.first(results)
+      question_set = first_result.question_set
+
+      # Verify associations are loaded
+      assert question_set.tags != %Ecto.Association.NotLoaded{}
+      assert question_set.owner != %Ecto.Association.NotLoaded{}
+      assert question_set.owner.email != nil
     end
   end
 end

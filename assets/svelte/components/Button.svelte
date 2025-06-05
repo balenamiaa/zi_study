@@ -2,13 +2,13 @@
     import { twMerge } from "tailwind-merge";
 
     let {
-        variant = "primary", // 'primary', 'secondary', 'accent', 'ghost', 'link', 'outline', 'error', 'warning', 'info', 'success'
-        size = "md", // 'xs', 'sm', 'md', 'lg'
+        variant = "primary",
+        size = "md",
         disabled = false,
         loading = false,
         fullWidth = false,
-        type = "button", // 'button', 'submit', 'reset'
-        spinnerSize = "sm", // Size of the DaisyUI spinner: 'xs', 'sm', 'md', 'lg'
+        type = "button",
+        spinnerSize = "sm",
         class: userClass = "",
         children,
         ...restProps
@@ -30,25 +30,24 @@
     const sizeMap = {
         xs: "btn-xs",
         sm: "btn-sm",
-        md: "", // Default DaisyUI button size, no specific class (btn-md doesn't exist)
+        md: "",
         lg: "btn-lg",
     };
 
     const spinnerSizeMap = {
         xs: "loading-xs",
         sm: "loading-sm",
-        md: "loading-md", // Default DaisyUI spinner size if no class specified on spinner
+        md: "loading-md",
         lg: "loading-lg",
     };
 
-    // Svelte 5: Use $derived for reactive class computation, merged with twMerge
     const computedButtonClasses = $derived(
         twMerge(
-            "btn", // Base DaisyUI button class
-            variantMap[variant], // Variant class
-            sizeMap[size], // Size class
-            fullWidth && "w-full", // Full width utility
-            userClass, // User-provided classes
+            "btn",
+            variantMap[variant],
+            sizeMap[size],
+            fullWidth && "w-full",
+            userClass,
         ),
     );
 

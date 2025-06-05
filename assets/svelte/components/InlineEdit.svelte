@@ -21,7 +21,7 @@
 
     // Display value with optional formatting
     let displayValue = $derived(
-        displayFormatter ? displayFormatter(value) : value
+        displayFormatter ? displayFormatter(value) : value,
     );
 
     function startEdit() {
@@ -60,7 +60,11 @@
     function handleKeydown(event) {
         if (event.key === "Escape") {
             cancelEdit();
-        } else if (event.key === "Enter" && !event.shiftKey && type !== "textarea") {
+        } else if (
+            event.key === "Enter" &&
+            !event.shiftKey &&
+            type !== "textarea"
+        ) {
             event.preventDefault();
             saveEdit();
         }
@@ -91,16 +95,18 @@
                         autofocus
                     />
                 {:else if type === "boolean"}
-                    <label class="cursor-pointer label">
-                        <input
-                            type="checkbox"
-                            bind:checked={editValue}
-                            class="toggle toggle-primary"
-                        />
-                        <span class="label-text ml-2">
-                            {editValue ? "Private" : "Public"}
-                        </span>
-                    </label>
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start gap-3">
+                            <input
+                                type="checkbox"
+                                bind:checked={editValue}
+                                class="toggle toggle-primary toggle-sm"
+                            />
+                            <span class="label-text font-medium">
+                                {editValue ? "Private Set" : "Public Set"}
+                            </span>
+                        </label>
+                    </div>
                 {/if}
             </div>
 
@@ -143,8 +149,14 @@
             <div class="flex items-center gap-2">
                 <div class="flex-1 min-w-0">
                     {#if type === "boolean"}
-                        <div class="badge {value ? 'badge-secondary' : 'badge-primary'}">
-                            {value ? "Private" : "Public"}
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="badge badge-sm {value
+                                    ? 'badge-secondary'
+                                    : 'badge-primary'}"
+                            >
+                                {value ? "Private" : "Public"}
+                            </div>
                         </div>
                     {:else if value}
                         <span class="text-base-content break-words">
@@ -178,4 +190,4 @@
         display: flex;
         align-items: center;
     }
-</style> 
+</style>

@@ -78,6 +78,7 @@ defmodule ZiStudyWeb.Router do
     live_session :active_learning,
       on_mount: [{ZiStudyWeb.UserAuth, :require_authenticated}] do
       live "/", ActiveLearningLive.Index
+      live "/question_sets", ActiveLearningLive.QuestionSets
       live "/question_set/:id", ActiveLearningLive.QuestionSet
     end
   end

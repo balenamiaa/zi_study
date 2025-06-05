@@ -140,25 +140,23 @@ defmodule ZiStudyWeb.CoreComponents do
     </header>
 
     <script :if={@show_on_scroll}>
-      // Topbar scroll behavior
       document.addEventListener("DOMContentLoaded", function() {
         const topbar = document.getElementById("<%= @id %>");
+        const delta = 50;
+
         let lastScrollTop = 0;
 
         window.addEventListener("scroll", function() {
           let scrollTop = window.scrollY || document.documentElement.scrollTop;
 
           if (scrollTop > 100) {
-            if (scrollTop > lastScrollTop) {
-              // Scrolling down
+            if (scrollTop - lastScrollTop > delta) {
               topbar.style.transform = "translateY(-100%)";
             } else {
-              // Scrolling up
               topbar.style.transform = "translateY(0)";
               topbar.classList.add("shadow-md");
             }
           } else {
-            // At the top
             topbar.style.transform = "translateY(0)";
             topbar.classList.remove("shadow-md");
           }

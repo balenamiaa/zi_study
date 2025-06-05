@@ -2,6 +2,7 @@
     import QuestionToolbar from "./QuestionToolbar.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
     import TextArea from "../TextArea.svelte";
+    import { setupQuestionEvents, createSubmissionHandler, isAnswerValid } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -10,6 +11,8 @@
         clearAnswer,
         questionNumber,
         live,
+        questionId = null,
+        userQuestionSets = null,
     } = $props();
 
     let answerText = $state(userAnswer?.data?.answer_text || "");
@@ -17,13 +20,13 @@
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let isSubmitting = $state(false);
     let showSelfEvaluation = $state(false);
+    let canSubmit = $derived(isAnswerValid(answerText, 'text'));
 
-    let answerSubmittedHandleRef = $state(null);
+    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
 
     function handleSubmitAnswer() {
-        if (answerText.trim() && !isSubmitting) {
-            isSubmitting = true;
-            submitAnswer({
+        if (canSubmit && !isSubmitting) {
+            handleSubmission({
                 answer_text: answerText,
             });
         }
@@ -56,18 +59,7 @@
     }
 
     $effect(() => {
-        if (live) {
-            answerSubmittedHandleRef = live.handleEvent(
-                "answer_submitted",
-                handleAnswerSubmitted,
-            );
-
-            return () => {
-                if (live) {
-                    live.removeHandleEvent(answerSubmittedHandleRef);
-                }
-            };
-        }
+        return setupQuestionEvents(live, handleAnswerSubmitted, null);
     });
 
     $effect(() => {
@@ -94,7 +86,10 @@
         hasExplanation={!!data.explanation}
         {isAnswered}
         bind:showExplanation
-        onclearAnswer={handleClearAnswer}
+        onClearAnswer={handleClearAnswer}
+        {questionId}
+        {live}
+        {userQuestionSets}
     >
         {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />
@@ -124,7 +119,7 @@
             <button
                 class="btn btn-primary btn-sm relative"
                 onclick={handleSubmitAnswer}
-                disabled={!answerText.trim() || isSubmitting}
+                disabled={!canSubmit || isSubmitting}
             >
                 {#if isSubmitting}
                     <span class="loading loading-spinner loading-xs"></span>

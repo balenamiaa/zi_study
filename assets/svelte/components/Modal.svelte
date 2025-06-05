@@ -1,4 +1,6 @@
 <script>
+    import { portal } from '../utils/portal.js';
+
     let {
         isOpen,
         onClose,
@@ -8,6 +10,8 @@
         showCloseButton = true,
         children,
     } = $props();
+
+    const modalId = `modal-${Math.random().toString(36).substr(2, 9)}`;
 
     let dialogEl;
 
@@ -20,8 +24,11 @@
 
     $effect(() => {
         if (dialogEl) {
-            if (isOpen && !dialogEl.open) dialogEl.showModal();
-            if (!isOpen && dialogEl.open) dialogEl.close();
+            if (isOpen && !dialogEl.open) {
+                dialogEl.showModal();
+            } else if (!isOpen && dialogEl.open) {
+                dialogEl.close();
+            }
         }
     });
 
@@ -36,16 +43,22 @@
     bind:this={dialogEl}
     class="modal"
     onclick={handleOverlayClick}
-    onclose={onClose}
-    aria-labelledby={title ? "modal-title" : undefined}
+    aria-labelledby={title ? modalId : undefined}
     aria-modal="true"
     tabindex="0"
+    use:portal
+    style:display={isOpen ? "flex" : "none"}
+    style:align-items="center"
+    style:justify-content="center"
+    style:position="fixed"
+    style:inset="0"
+    style:z-index="999"
 >
     <div class={sizeClasses[size]}>
         {#if title || showCloseButton}
             <div class="flex items-center justify-between mb-4">
                 {#if title}
-                    <h3 id="modal-title" class="font-bold text-lg">
+                    <h3 id={modalId} class="font-bold text-lg">
                         {title}
                     </h3>
                 {:else}

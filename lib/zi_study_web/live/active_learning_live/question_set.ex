@@ -15,7 +15,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
           %{
             questionSet: @question_set,
             userQuestionSets: @user_question_sets,
-            questions: @questions,
             currentUser: @current_user_dto
           }
         }
@@ -31,8 +30,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
      socket
      |> assign(:question_set, get_question_set(params["id"], current_user.id))
      |> assign(:current_user_dto, owner_to_dto(current_user))
-     |> assign(:user_question_sets, nil)
-     |> assign(:questions, nil)}
+     |> assign(:user_question_sets, nil)}
   end
 
   def get_question_set(question_set_id, user_id) do
@@ -108,16 +106,26 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     }
   end
 
+  def handle_event("clear_user_question_sets", _params, socket) do
+    {:noreply, assign(socket, :user_question_sets, nil)}
+  end
+
   def handle_event(
-        "load_user_question_sets",
-        %{"page_number" => page_number, "search_query" => search_query},
+        "load_owned_question_sets_for_question",
+        %{
+          "question_id" => question_id,
+          "page_number" => page_number,
+          "search_query" => search_query
+        },
         socket
       ) do
     current_user = socket.assigns.current_scope.user
+    question_id_int = String.to_integer(question_id)
 
-    {user_question_sets, total_count} =
-      Questions.get_user_accessible_question_sets(
+    {question_sets_with_info, total_count} =
+      Questions.get_owned_question_sets_with_containing_information_for_question(
         current_user.id,
+        question_id_int,
         search_query,
         page_number,
         @default_page_size
@@ -125,50 +133,21 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
     total_pages = div(total_count + @default_page_size - 1, @default_page_size)
 
-    {:noreply,
-     assign(socket, :user_question_sets, %{
-       "page_size" => @default_page_size,
-       "page_number" => page_number,
-       "total_pages" => total_pages,
-       "total_items" => total_count,
-       "items" =>
-         user_question_sets |> Enum.map(&question_set_to_accessible_dto(&1, current_user.id))
-     })}
-  end
+    items =
+      Enum.map(question_sets_with_info, fn %{question_set: qs, contains_question: contains} ->
+        qs_dto = question_set_to_accessible_dto(qs, current_user.id)
+        Map.put(qs_dto, :contains_question, contains)
+      end)
 
-  def handle_event(
-        "load_questions",
-        %{"page_number" => page_number, "search_query" => search_query},
-        socket
-      ) do
-    current_question_set = socket.assigns.question_set
+    question_sets_data = %{
+      "page_size" => @default_page_size,
+      "page_number" => page_number,
+      "total_pages" => total_pages,
+      "total_items" => total_count,
+      "items" => items
+    }
 
-    {questions, total_count} =
-      Questions.get_questions_not_in_set(
-        current_question_set.id,
-        search_query,
-        page_number,
-        @default_page_size
-      )
-
-    total_pages = div(total_count + @default_page_size - 1, @default_page_size)
-
-    {:noreply,
-     assign(socket, :questions, %{
-       "page_size" => @default_page_size,
-       "page_number" => page_number,
-       "total_pages" => total_pages,
-       "total_items" => total_count,
-       "items" => questions |> Enum.map(&get_question_dto/1)
-     })}
-  end
-
-  def handle_event("clear_questions", _params, socket) do
-    {:noreply, assign(socket, :questions, nil)}
-  end
-
-  def handle_event("clear_user_question_sets", _params, socket) do
-    {:noreply, assign(socket, :user_question_sets, nil)}
+    {:noreply, assign(socket, :user_question_sets, question_sets_data)}
   end
 
   def handle_event("answer_question", %{"question_id" => question_id, "answer" => answer}, socket) do
@@ -303,8 +282,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
             {:noreply,
              socket
-             |> assign(:question_set, updated_question_set)
-             |> put_flash(:info, "Question set updated successfully")}
+             |> assign(:question_set, updated_question_set)}
 
           {:error, _changeset} ->
             {:noreply, put_flash(socket, :error, "Failed to update question set")}
@@ -312,41 +290,66 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-  def handle_event("add_questions_to_set", %{"question_ids" => question_ids}, socket) do
+  def handle_event(
+        "modify_question_sets",
+        %{"question_id" => question_id, "question_set_modifications" => modifications},
+        socket
+      ) do
     current_user = socket.assigns.current_scope.user
-    question_set_id = socket.assigns.question_set.id
+    question_id_int = String.to_integer(question_id)
 
-    case Questions.get_question_set(question_set_id) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Question set not found")}
+    set_modifications =
+      Enum.map(modifications, fn %{"set_id" => set_id, "should_contain" => should_contain} ->
+        {String.to_integer(set_id), should_contain}
+      end)
 
-      question_set_db when question_set_db.owner_id != current_user.id ->
-        {:noreply, put_flash(socket, :error, "You don't have permission to edit this set")}
+    case Questions.modify_question_sets(current_user.id, question_id_int, set_modifications) do
+      {:ok,
+       %{
+         added_to_sets: added,
+         removed_from_sets: removed,
+         total_modified: total,
+         modified_sets: modified_sets
+       }} ->
+        message =
+          cond do
+            added > 0 and removed > 0 ->
+              "Added to #{added} set(s), removed from #{removed} set(s)"
 
-      question_set_db ->
-        question_id_ints = Enum.map(question_ids, &String.to_integer/1)
+            added > 0 ->
+              "Added to #{added} set(s)"
 
-        case Questions.add_questions_to_set(question_set_db, question_id_ints, current_user.id) do
-          {:ok, _updated_set} ->
-            updated_question_set = get_question_set(question_set_id, current_user.id)
+            removed > 0 ->
+              "Removed from #{removed} set(s)"
 
-            {:noreply,
-             socket
-             |> assign(:question_set, updated_question_set)
-             # Clear the questions list to refresh
-             |> assign(:questions, nil)
-             |> put_flash(:info, "Questions added successfully")}
+            true ->
+              "No changes made"
+          end
 
-          {:error, reason} ->
-            error_message =
-              case reason do
-                :unauthorized -> "You don't have permission to edit this set"
-                :no_valid_questions -> "No valid questions provided"
-                _ -> "Failed to add questions"
-              end
+        current_question_set_id = socket.assigns.question_set.id
 
-            {:noreply, put_flash(socket, :error, error_message)}
-        end
+        current_set_modified =
+          Enum.any?(modified_sets, fn %{set_id: set_id} ->
+            set_id == current_question_set_id
+          end)
+
+        updated_socket =
+          if current_set_modified do
+            updated_question_set = get_question_set(current_question_set_id, current_user.id)
+            assign(socket, :question_set, updated_question_set)
+          else
+            socket
+          end
+
+        {:noreply,
+         updated_socket
+         |> push_event("question_sets_modified", %{
+           total_modified: total,
+           modified_sets: modified_sets
+         })}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to modify question sets")}
     end
   end
 
@@ -367,8 +370,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
       {:ok, %{added_to_sets: count}} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Question added to #{count} set(s) successfully")
-         # Clear to refresh
+         |> push_event("question_added_to_sets", %{count: count})
          |> assign(:user_question_sets, nil)}
 
       {:error, %{added_to_sets: successes, failed_sets: failures}} ->
@@ -387,12 +389,106 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
       {:ok, _question_set} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Question set '#{title}' created successfully")
-         # Clear to refresh
+         |> push_event("set_created", %{})
          |> assign(:user_question_sets, nil)}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to create question set")}
+    end
+  end
+
+  def handle_event("load_all_tags", %{"search_query" => search_query}, socket) do
+    tags = Questions.list_tags()
+
+    filtered_tags =
+      if search_query != "" do
+        search_pattern = String.downcase(search_query)
+
+        Enum.filter(tags, fn tag ->
+          String.contains?(String.downcase(tag.name), search_pattern)
+        end)
+      else
+        tags
+      end
+
+    tag_dtos = Enum.map(filtered_tags, &get_tag_dto/1)
+
+    {:noreply, push_event(socket, "tags_loaded", %{tags: tag_dtos})}
+  end
+
+  def handle_event("create_tag", %{"name" => name}, socket) do
+    case Questions.create_tag(%{name: name}) do
+      {:ok, tag} ->
+        {:noreply, push_event(socket, "tag_created", %{tag: get_tag_dto(tag)})}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Failed to create tag")}
+    end
+  end
+
+  def handle_event("clear_tags", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "add_tags_to_question_set",
+        %{"question_set_id" => question_set_id, "tag_ids" => tag_ids},
+        socket
+      ) do
+    current_user = socket.assigns.current_scope.user
+    question_set_id_int = String.to_integer(question_set_id)
+    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+
+    case Questions.get_question_set(question_set_id_int) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Question set not found")}
+
+      question_set_db when question_set_db.owner_id != current_user.id ->
+        {:noreply, put_flash(socket, :error, "You don't have permission to edit this set")}
+
+      question_set_db ->
+        case Questions.add_tags_to_question_set(question_set_db, tag_id_ints) do
+          {:ok, _updated_set} ->
+            updated_question_set = get_question_set(question_set_id_int, current_user.id)
+
+            {:noreply,
+             socket
+             |> assign(:question_set, updated_question_set)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to add tags")}
+        end
+    end
+  end
+
+  def handle_event(
+        "remove_tags_from_question_set",
+        %{"question_set_id" => question_set_id, "tag_ids" => tag_ids},
+        socket
+      ) do
+    current_user = socket.assigns.current_scope.user
+    question_set_id_int = String.to_integer(question_set_id)
+    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+
+    case Questions.get_question_set(question_set_id_int) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Question set not found")}
+
+      question_set_db when question_set_db.owner_id != current_user.id ->
+        {:noreply, put_flash(socket, :error, "You don't have permission to edit this set")}
+
+      question_set_db ->
+        case Questions.remove_tags_from_question_set(question_set_db, tag_id_ints) do
+          {:ok, _updated_set} ->
+            updated_question_set = get_question_set(question_set_id_int, current_user.id)
+
+            {:noreply,
+             socket
+             |> assign(:question_set, updated_question_set)}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to remove tags")}
+        end
     end
   end
 end

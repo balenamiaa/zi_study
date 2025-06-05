@@ -24,7 +24,7 @@ defmodule ZiStudyWeb.Layouts do
       </:logo_src>
       <:logo_text>
         <span class="text-lg font-bold">ZiStudy</span>
-        <span class="text-xs opacity-70">v{Application.spec(:phoenix, :vsn)}</span>
+        <span class="text-xs opacity-70">v{Application.spec(:zi_study, :vsn)}</span>
       </:logo_text>
       <:nav_links>
         <li><a href="/" class="font-medium">Home</a></li>
@@ -71,7 +71,7 @@ defmodule ZiStudyWeb.Layouts do
       </:logo_src>
       <:logo_text>
         <span class="text-lg font-bold">ZiStudy</span>
-        <span class="text-xs opacity-70">v{Application.spec(:phoenix, :vsn)}</span>
+        <span class="text-xs opacity-70">v{Application.spec(:zi_study, :vsn)}</span>
       </:logo_text>
       <:nav_links>
         <li><a href="/" class="font-medium">Home</a></li>
@@ -127,7 +127,7 @@ defmodule ZiStudyWeb.Layouts do
                 Question Sets
               </h3>
               <a
-                href={~p"/active-learning"}
+                href={~p"/active-learning/question_sets"}
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
               >
                 <.icon
@@ -137,17 +137,7 @@ defmodule ZiStudyWeb.Layouts do
                 <span>Browse Sets</span>
               </a>
               <a
-                href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
-              >
-                <.icon
-                  name="hero-plus-mini"
-                  class="size-5 text-base-content/70 group-hover:text-primary"
-                />
-                <span>Create Set</span>
-              </a>
-              <a
-                href="#"
+                href={~p"/active-learning/question_sets/favorites"}
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
               >
                 <.icon
@@ -167,26 +157,6 @@ defmodule ZiStudyWeb.Layouts do
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
               >
                 <.icon
-                  name="hero-chart-bar-mini"
-                  class="size-5 text-base-content/70 group-hover:text-primary"
-                />
-                <span>Progress</span>
-              </a>
-              <a
-                href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
-              >
-                <.icon
-                  name="hero-fire-mini"
-                  class="size-5 text-base-content/70 group-hover:text-primary"
-                />
-                <span>Streak</span>
-              </a>
-              <a
-                href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
-              >
-                <.icon
                   name="hero-calendar-days-mini"
                   class="size-5 text-base-content/70 group-hover:text-primary"
                 />
@@ -198,16 +168,6 @@ defmodule ZiStudyWeb.Layouts do
               <h3 class="px-3 text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-3">
                 Community
               </h3>
-              <a
-                href="#"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
-              >
-                <.icon
-                  name="hero-users-mini"
-                  class="size-5 text-base-content/70 group-hover:text-primary"
-                />
-                <span>Public Sets</span>
-              </a>
               <a
                 href="#"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"

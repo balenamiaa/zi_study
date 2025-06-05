@@ -10,10 +10,10 @@
         hasExplanation = false,
         isAnswered = false,
         showExplanation = $bindable(false),
-        onclearAnswer,
+        onClearAnswer,
         questionId,
+        userQuestionSets,
         live,
-        userQuestionSets = null,
         class: userClass = "",
         children,
     } = $props();
@@ -25,8 +25,8 @@
     }
 
     function clearAnswer() {
-        if (onclearAnswer) {
-            onclearAnswer();
+        if (onClearAnswer) {
+            onClearAnswer();
         }
     }
 
@@ -38,6 +38,14 @@
         showAddToSetsModal = false;
     }
 </script>
+
+<AddToSetsModal
+    isOpen={showAddToSetsModal}
+    onClose={closeAddToSetsModal}
+    {questionId}
+    {userQuestionSets}
+    {live}
+/>
 
 <div class="mb-4 {userClass}">
     <!-- Responsive layout with flex-wrap -->
@@ -186,24 +194,13 @@
     </div>
 </div>
 
-<!-- Explanation Display -->
 {#if showExplanation && hasExplanation}
     {#if children}
         {@render children()}
     {/if}
 {/if}
 
-<!-- Add to Sets Modal -->
-<AddToSetsModal
-    isOpen={showAddToSetsModal}
-    onClose={closeAddToSetsModal}
-    {questionId}
-    {live}
-    {userQuestionSets}
-/>
-
 <style>
-    /* Enhanced button animations */
     .btn {
         transition:
             background-color 0.2s ease,

@@ -20,20 +20,24 @@ defmodule ZiStudy.Questions do
   @doc """
   Returns a list of all question sets.
 
-  Optionally filters by `user_id` to return sets owned by the user or public sets.
-  If `filter_private` is true, only public sets are returned. `filter_private` is ignored if `user_id` is not provided.
+  When `user_id` is provided:
+  - If `show_only_owned` is true, only shows sets owned by the user (both private and public)
+  - If `show_only_owned` is false, shows all sets owned by user + public sets owned by others
+
+  When `user_id` is nil, only public sets are returned (show_only_owned is ignored).
   """
-  def list_question_sets(user_id \\ nil, filter_private \\ false) do
+  def list_question_sets(user_id \\ nil, show_only_owned \\ false) do
     QuestionSet
     |> (fn query ->
           if user_id do
-            # if filter_private is true, show public (is_private == false)
-            # if filter_private is false, show private (is_private == true)
-            # so, is_private should be (not filter_private)
-            from qs in query,
-              where: qs.owner_id == ^user_id and qs.is_private == not (^filter_private)
+            if show_only_owned do
+              from qs in query,
+                where: qs.owner_id == ^user_id
+            else
+              from qs in query,
+                where: qs.owner_id == ^user_id or not qs.is_private
+            end
           else
-            # if no user_id, only public sets are returned, filter_private is ignored
             from qs in query,
               where: not qs.is_private
           end
@@ -1129,12 +1133,173 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
+  Gets question set IDs that contain a specific question.
+  """
+  def get_question_sets_containing_question(question_id) do
+    from(qsj in "question_set_questions",
+      where: qsj.question_id == ^question_id,
+      select: qsj.question_set_id
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets question sets owned by a user with information about whether they contain a specific question.
+  Returns a list of question set DTOs with contains_question boolean.
+  Includes pagination and search support.
+  """
+  def get_owned_question_sets_with_containing_information_for_question(
+        user_id,
+        question_id,
+        search_query \\ "",
+        page_number \\ 1,
+        page_size \\ 15
+      ) do
+    offset = (page_number - 1) * page_size
+    search_pattern = "%#{String.downcase(search_query)}%"
+
+    base_query =
+      from qs in QuestionSet,
+        left_join: qsj in "question_set_questions",
+        on: qs.id == qsj.question_set_id and qsj.question_id == ^question_id,
+        where: qs.owner_id == ^user_id,
+        preload: [:tags, :owner]
+
+    # Apply search filter if provided
+    filtered_query =
+      if search_query != "" do
+        from qs in base_query,
+          where:
+            fragment("LOWER(?) LIKE ?", qs.title, ^search_pattern) or
+              fragment("LOWER(?) LIKE ?", qs.description, ^search_pattern)
+      else
+        base_query
+      end
+
+    # Get total count
+    total_count =
+      filtered_query
+      |> exclude(:preload)
+      |> exclude(:order_by)
+      |> Repo.aggregate(:count, :id)
+
+    # Get paginated results with containment information
+    question_sets =
+      filtered_query
+      |> select([qs, qsj], %{question_set: qs, contains_question: not is_nil(qsj.question_id)})
+      |> order_by([qs, qsj], desc: qs.updated_at)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {question_sets, total_count}
+  end
+
+  @doc """
+  Modifies question-set relationships for a specific question.
+
+  ## Parameters
+  - `user_id`: ID of the user performing the operation (only user's owned sets can be modified)
+  - `question_id`: ID of the question to modify
+  - `set_modifications`: List of `{question_set_id, should_contain}` tuples where:
+    - `question_set_id` is the ID of the question set
+    - `should_contain` is a boolean indicating if the question should be in that set
+
+  ## Returns
+  - `{:ok, %{added_to_sets: count, removed_from_sets: count, total_modified: count, modified_sets: list}}` on success
+  - `{:error, reason}` on failure
+
+  Only modifies sets owned by the user for security.
+  """
+  def modify_question_sets(user_id, question_id, set_modifications)
+      when is_list(set_modifications) do
+    current_set_ids = MapSet.new(get_question_sets_containing_question(question_id))
+
+    owned_sets =
+      from(qs in QuestionSet,
+        where: qs.owner_id == ^user_id,
+        select: qs.id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    {sets_to_add, sets_to_remove} =
+      set_modifications
+      |> Enum.filter(fn {set_id, _should_contain} -> MapSet.member?(owned_sets, set_id) end)
+      |> Enum.reduce({[], []}, fn {set_id, should_contain}, {adds, removes} ->
+        currently_contains = MapSet.member?(current_set_ids, set_id)
+
+        cond do
+          should_contain and not currently_contains -> {[set_id | adds], removes}
+          not should_contain and currently_contains -> {adds, [set_id | removes]}
+          true -> {adds, removes}
+        end
+      end)
+
+    Repo.transaction(fn ->
+      add_results =
+        Enum.map(sets_to_add, fn set_id ->
+          case get_question_set(set_id) do
+            nil ->
+              {:error, :set_not_found}
+
+            question_set ->
+              case add_questions_to_set(question_set, [question_id], user_id) do
+                {:ok, _} -> {:ok, {set_id, true}}
+                error -> error
+              end
+          end
+        end)
+
+      remove_results =
+        Enum.map(sets_to_remove, fn set_id ->
+          case get_question_set(set_id) do
+            nil ->
+              {:error, :set_not_found}
+
+            question_set ->
+              case remove_questions_from_set(question_set, [question_id]) do
+                {:ok, _} -> {:ok, {set_id, false}}
+                error -> error
+              end
+          end
+        end)
+
+      add_successes = Enum.filter(add_results, &match?({:ok, _}, &1))
+      add_failures = Enum.count(add_results, &match?({:error, _}, &1))
+
+      remove_successes = Enum.filter(remove_results, &match?({:ok, _}, &1))
+      remove_failures = Enum.count(remove_results, &match?({:error, _}, &1))
+
+      if add_failures == 0 and remove_failures == 0 do
+        modified_sets =
+          Enum.map(add_successes ++ remove_successes, fn {:ok, {set_id, action}} ->
+            %{set_id: set_id, action: action}
+          end)
+
+        %{
+          added_to_sets: length(add_successes),
+          removed_from_sets: length(remove_successes),
+          total_modified: length(add_successes) + length(remove_successes),
+          modified_sets: modified_sets
+        }
+      else
+        Repo.rollback(%{
+          add_successes: length(add_successes),
+          add_failures: add_failures,
+          remove_successes: length(remove_successes),
+          remove_failures: remove_failures
+        })
+      end
+    end)
+  end
+
+  @doc """
   Adds a question to multiple question sets.
   Only adds to sets owned by the user for security.
   """
   def add_question_to_multiple_sets(user_id, question_id, question_set_ids)
       when is_list(question_set_ids) do
-    # Verify user owns all the sets
     owned_sets =
       from(qs in QuestionSet,
         where: qs.id in ^question_set_ids and qs.owner_id == ^user_id,
@@ -1142,7 +1307,6 @@ defmodule ZiStudy.Questions do
       )
       |> Repo.all()
 
-    # Add question to each owned set
     results =
       Enum.map(owned_sets, fn set_id ->
         case get_question_set(set_id) do
@@ -1151,7 +1315,6 @@ defmodule ZiStudy.Questions do
         end
       end)
 
-    # Count successes and failures
     successes = Enum.count(results, &match?({:ok, _}, &1))
     failures = Enum.count(results, &match?({:error, _}, &1))
 
