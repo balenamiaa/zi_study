@@ -83,27 +83,84 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
   end
 
   def handle_event("answer_question", %{"question_id" => question_id, "answer" => answer}, socket) do
-    IO.inspect(answer, label: "answer")
-
-    ZiStudy.Questions.create_question(%ZiStudy.QuestionsOps.Processed.Question.TrueFalse{
-      question_text: "Zin is the best",
-      is_correct_true: true,
-      difficulty: "1",
-      retention_aid: "Even if she hurts me.",
-      explanation: "Is a primordial truth."
-    })
-
     current_user = socket.assigns.current_scope.user
     question_id_int = String.to_integer(question_id)
 
-    case Questions.check_answer_correctness(question_id_int, answer) do
-      {:ok, is_correct} ->
-        # Create or update the user's answer
-        is_correct_int = if is_correct, do: 1, else: 0
+    # Get the question to check its type
+    question = Questions.get_question(question_id_int)
 
-        case Questions.upsert_answer(current_user.id, question_id_int, answer, is_correct_int) do
+    case question do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Question not found")}
+
+      %{data: %{"question_type" => "written"}} ->
+        # Written questions are always saved as unevaluated (2) for self-evaluation
+        case Questions.upsert_answer(current_user.id, question_id_int, answer, 2) do
           {:ok, _answer} ->
-            # Refresh the question set data to include the new answer
+            updated_question_set =
+              get_question_set(socket.assigns.question_set.id, current_user.id)
+
+            {:noreply,
+             socket
+             |> assign(:question_set, updated_question_set)
+             |> push_event("answer_submitted", %{question_id: question_id})}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Failed to save answer")}
+        end
+
+      _ ->
+        # For all other question types, use the normal correctness checking
+        case Questions.check_answer_correctness(question_id_int, answer) do
+          {:ok, is_correct} ->
+            is_correct_int = if is_correct, do: 1, else: 0
+
+            case Questions.upsert_answer(current_user.id, question_id_int, answer, is_correct_int) do
+              {:ok, _answer} ->
+                updated_question_set =
+                  get_question_set(socket.assigns.question_set.id, current_user.id)
+
+                {:noreply,
+                 socket
+                 |> assign(:question_set, updated_question_set)
+                 |> push_event("answer_submitted", %{question_id: question_id})}
+
+              {:error, _changeset} ->
+                {:noreply, put_flash(socket, :error, "Failed to save answer")}
+            end
+
+          {:error, reason} ->
+            error_message =
+              case reason do
+                :question_not_found -> "Question not found"
+                :invalid_question_data -> "Invalid question data"
+                :invalid_option_index -> "Invalid option selected"
+                :invalid_option_indices -> "Invalid options selected"
+                :wrong_number_of_answers -> "Wrong number of answers provided"
+                :mismatched_answer_question_types -> "Answer doesn't match question type"
+                _ -> "Invalid answer format"
+              end
+
+            {:noreply,
+             socket
+             |> put_flash(:error, error_message)
+             |> push_event("answer_submitted", %{question_id: question_id})}
+        end
+    end
+  end
+
+  def handle_event("self_evaluate_answer", %{"question_id" => question_id, "is_correct" => is_correct}, socket) do
+    current_user = socket.assigns.current_scope.user
+    question_id_int = String.to_integer(question_id)
+    is_correct_int = if is_correct, do: 1, else: 0
+
+    case Questions.get_user_answer(current_user.id, question_id_int) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Answer not found")}
+
+      answer ->
+        case Questions.update_answer(answer, %{is_correct: is_correct_int}) do
+          {:ok, _updated_answer} ->
             updated_question_set =
               get_question_set(socket.assigns.question_set.id, current_user.id)
 
@@ -112,22 +169,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
              |> assign(:question_set, updated_question_set)}
 
           {:error, _changeset} ->
-            {:noreply, put_flash(socket, :error, "Failed to save answer")}
+            {:noreply, put_flash(socket, :error, "Failed to update self-evaluation")}
         end
-
-      {:error, reason} ->
-        error_message =
-          case reason do
-            :question_not_found -> "Question not found"
-            :invalid_question_data -> "Invalid question data"
-            :invalid_option_index -> "Invalid option selected"
-            :invalid_option_indices -> "Invalid options selected"
-            :wrong_number_of_answers -> "Wrong number of answers provided"
-            :mismatched_answer_question_types -> "Answer doesn't match question type"
-            _ -> "Invalid answer format"
-          end
-
-        {:noreply, put_flash(socket, :error, error_message)}
     end
   end
 
@@ -141,7 +184,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
         {:noreply,
          socket
-         |> assign(:question_set, updated_question_set)}
+         |> assign(:question_set, updated_question_set)
+         |> push_event("answer_reset", %{question_id: question_id})}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to clear answer")}
