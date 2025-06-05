@@ -1,25 +1,36 @@
 <script>
-        import { SearchIcon, PlusIcon } from "lucide-svelte";
+    import {
+        SearchIcon,
+        PlusIcon,
+        XIcon,
+        CheckIcon,
+        PencilIcon,
+    } from "lucide-svelte";
     import FilterPanel from "../components/questions/FilterPanel.svelte";
     import QuestionsOverview from "../components/questions/QuestionsOverview.svelte";
     import QuestionRenderer from "../components/questions/QuestionRenderer.svelte";
-    import InlineEdit from "../components/InlineEdit.svelte";
     import TagsManagementModal from "../components/questions/TagsManagementModal.svelte";
     let { live, questionSet, userQuestionSets, currentUser } = $props();
 
-        let searchQuery = $state("");
+    let searchQuery = $state("");
     let showFilters = $state(false);
     let difficultyRange = $state([1, 5]);
     let answerStatus = $state("all");
     let currentQuestionIndex = $state(0);
     let showTagsModal = $state(false);
+    let isEditingHeader = $state(false);
+    let editingValues = $state({
+        title: "",
+        description: "",
+        is_private: false,
+    });
 
     let questionsContainer;
     let filteredQuestions = $derived.by(() => {
         if (!questionSet?.questions) return [];
 
         return questionSet.questions.filter((question) => {
-                        const matchesSearch =
+            const matchesSearch =
                 searchQuery === "" ||
                 question.data.question_text
                     ?.toLowerCase()
@@ -46,9 +57,13 @@
             const questionsWrapper = questionsContainer.children[0];
             if (questionsWrapper && questionsWrapper.children[index]) {
                 const questionElement = questionsWrapper.children[index];
-                const containerRect = questionsContainer.getBoundingClientRect();
+                const containerRect =
+                    questionsContainer.getBoundingClientRect();
                 const elementRect = questionElement.getBoundingClientRect();
-                const relativeTop = elementRect.top - containerRect.top + questionsContainer.scrollTop;
+                const relativeTop =
+                    elementRect.top -
+                    containerRect.top +
+                    questionsContainer.scrollTop;
 
                 questionsContainer.scrollTo({
                     top: relativeTop - 20,
@@ -95,79 +110,236 @@
     function handleFieldUpdate(field, value) {
         live.pushEvent("update_question_set", { field, value });
     }
+
+    function startHeaderEdit() {
+        if (
+            !questionSet?.owner ||
+            questionSet.owner.email !== currentUser?.email
+        )
+            return;
+        editingValues = {
+            title: questionSet.title || "",
+            description: questionSet.description || "",
+            is_private: questionSet.is_private || false,
+        };
+        isEditingHeader = true;
+    }
+
+    function cancelHeaderEdit() {
+        isEditingHeader = false;
+    }
+
+    function saveHeaderChanges() {
+        if (editingValues.title !== questionSet.title) {
+            handleFieldUpdate("title", editingValues.title);
+        }
+        if (editingValues.description !== questionSet.description) {
+            handleFieldUpdate("description", editingValues.description);
+        }
+        if (editingValues.is_private !== questionSet.is_private) {
+            handleFieldUpdate("is_private", editingValues.is_private);
+        }
+        isEditingHeader = false;
+    }
 </script>
 
-    <div class="min-h-screen bg-base-100 flex flex-col gap-4">
+<div class="min-h-screen bg-base-100 flex flex-col gap-4">
     <div class="bg-base-200 border-b border-base-300">
         <div class="max-w-7xl mx-auto p-2 md:p-4">
-            <div class="flex items-start justify-between mb-4">
-                <div class="flex-1 mr-4">
-                    <div class="mb-2">
-                        <InlineEdit
-                            bind:value={questionSet.title}
-                            placeholder="Question Set Title"
-                            type="text"
-                            disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
-                            onSave={(value) => handleFieldUpdate("title", value)}
-                            class="text-3xl font-bold text-base-content"
-                        />
-                    </div>
-
-                    <div class="mt-2">
-                        <InlineEdit
-                            bind:value={questionSet.description}
-                            placeholder="Add a description..."
-                            type="textarea"
-                            disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
-                            onSave={(value) => handleFieldUpdate("description", value)}
-                            class="text-base-content/70"
-                        />
-                    </div>
-                </div>
-
-                <div class="flex flex-col items-end gap-2">
-                    <InlineEdit
-                        bind:value={questionSet.is_private}
-                        type="boolean"
-                        disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
-                        onSave={(value) => handleFieldUpdate("is_private", value)}
-                    />
-                    
-                    {#if questionSet?.owner}
-                        <div class="text-xs text-base-content/50">
-                            by {questionSet.owner.email}
-                        </div>
-                    {/if}
-                </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-                {#if questionSet?.tags && questionSet.tags.length > 0}
-                    <div class="flex flex-wrap gap-2">
-                        {#each questionSet.tags as tag}
-                            <span class="badge badge-outline">{tag.name}</span>
-                        {/each}
-                    </div>
-                {:else}
-                    <span class="text-base-content/50 text-sm">No tags</span>
-                {/if}
-                
-                {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
-                    <button
-                        class="btn btn-ghost btn-circle btn-xs ml-1 hover:bg-primary hover:text-primary-content transition-colors"
-                        onclick={() => (showTagsModal = true)}
-                        title="Manage tags"
+            {#if isEditingHeader}
+                <!-- Edit Mode -->
+                <div
+                    class="bg-base-100 rounded-lg p-4 border border-base-300 space-y-4"
+                >
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                        <PlusIcon class="h-3 w-3" />
-                    </button>
-                {/if}
-            </div>
+                        <h3 class="text-lg font-semibold text-base-content">
+                            Edit Question Set
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <button
+                                class="btn btn-ghost btn-sm gap-2"
+                                onclick={cancelHeaderEdit}
+                            >
+                                <XIcon class="h-4 w-4" />
+                                Cancel
+                            </button>
+                            <button
+                                class="btn btn-primary btn-sm gap-2"
+                                onclick={saveHeaderChanges}
+                            >
+                                <CheckIcon class="h-4 w-4" />
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <!-- Title -->
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-base-content mb-2"
+                                >Title</label
+                            >
+                            <input
+                                type="text"
+                                bind:value={editingValues.title}
+                                placeholder="Question Set Title"
+                                class="input input-bordered w-full text-2xl font-bold"
+                            />
+                        </div>
+
+                        <!-- Description -->
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-base-content mb-2"
+                                >Description</label
+                            >
+                            <textarea
+                                bind:value={editingValues.description}
+                                placeholder="Add a description..."
+                                class="textarea textarea-bordered w-full"
+                                rows="3"
+                            ></textarea>
+                        </div>
+
+                        <!-- Privacy Toggle -->
+                        <div>
+                            <label
+                                class="block text-sm font-medium text-base-content mb-2"
+                                >Visibility</label
+                            >
+                            <div class="form-control">
+                                <label
+                                    class="cursor-pointer label justify-start gap-3"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        bind:checked={editingValues.is_private}
+                                        class="toggle toggle-primary"
+                                    />
+                                    <span class="label-text font-medium">
+                                        {editingValues.is_private
+                                            ? "Private Set"
+                                            : "Public Set"}
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {:else}
+                <!-- Display Mode -->
+                <div class="space-y-4 relative">
+                    <!-- Edit button positioned absolutely in top right -->
+                    {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
+                        <button
+                            class="btn btn-outline btn-xs gap-1 absolute top-0 right-0 z-10"
+                            onclick={startHeaderEdit}
+                        >
+                            <PencilIcon class="h-3 w-3" />
+                            <span class="hidden sm:inline">Edit</span>
+                        </button>
+                    {/if}
+
+                    <div class="pr-16 sm:pr-20">
+                        <div class="mb-3">
+                            <h1
+                                class="text-2xl sm:text-3xl font-bold text-base-content break-words"
+                            >
+                                {questionSet.title ||
+                                    "Untitled Question Set"}
+                            </h1>
+                        </div>
+
+                        <!-- Owner and metadata info -->
+                        <div
+                            class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3"
+                        >
+                            {#if questionSet?.owner}
+                                <div class="flex items-center gap-2">
+                                    <div
+                                        class="w-6 h-6 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center"
+                                    >
+                                        <span
+                                            class="text-xs font-bold text-primary-content"
+                                        >
+                                            {questionSet.owner.email
+                                                .charAt(0)
+                                                .toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <span
+                                        class="text-sm text-base-content/70 font-medium"
+                                    >
+                                        by {questionSet.owner.email}
+                                    </span>
+                                </div>
+                            {/if}
+
+                            <div class="flex items-center gap-2">
+                                <div
+                                    class="badge badge-sm {questionSet.is_private
+                                        ? 'badge-secondary'
+                                        : 'badge-primary'} font-medium"
+                                >
+                                    {questionSet.is_private
+                                        ? "Private"
+                                        : "Public"}
+                                </div>
+                            </div>
+                        </div>
+
+                        {#if questionSet.description}
+                            <div
+                                class="text-base-content/70 text-sm sm:text-base break-words"
+                            >
+                                {questionSet.description}
+                            </div>
+                        {:else}
+                            <div
+                                class="text-base-content/50 italic text-sm"
+                            >
+                                No description provided
+                            </div>
+                        {/if}
+                    </div>
+
+                    <!-- Tags section -->
+                    <div class="flex items-center gap-2 flex-wrap">
+                        {#if questionSet?.tags && questionSet.tags.length > 0}
+                            {#each questionSet.tags as tag}
+                                <span class="badge badge-outline text-xs"
+                                    >{tag.name}</span
+                                >
+                            {/each}
+                        {:else}
+                            <span class="text-base-content/50 text-sm"
+                                >No tags</span
+                            >
+                        {/if}
+
+                        {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
+                            <button
+                                class="btn btn-ghost btn-circle btn-xs hover:bg-primary hover:text-primary-content transition-colors"
+                                onclick={() => (showTagsModal = true)}
+                                title="Manage tags"
+                            >
+                                <PlusIcon class="h-3 w-3" />
+                            </button>
+                        {/if}
+                    </div>
+                </div>
+            {/if}
         </div>
     </div>
 
     <div class="bg-base-100 border-b border-base-300">
         <div class="max-w-7xl mx-auto p-2 md:p-4">
-            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div
+                class="flex flex-col sm:flex-row gap-4 items-start sm:items-center"
+            >
                 <label for="search" class="input relative flex-1 max-w-md">
                     <SearchIcon class="h-5 w-5" />
                     <input
@@ -182,23 +354,57 @@
                     class="btn btn-outline gap-2 min-w-fit"
                     onclick={() => (showFilters = !showFilters)}
                 >
-                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z" />
+                    <svg
+                        class="w-4 h-4"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z"
+                        />
                     </svg>
                     All Filters
                     {#if showFilters}
-                        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                        <svg
+                            class="w-4 h-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 15l7-7 7 7"
+                            />
                         </svg>
                     {:else}
-                        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        <svg
+                            class="w-4 h-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M19 9l-7 7-7-7"
+                            />
                         </svg>
                     {/if}
                 </button>
 
                 <div class="text-sm text-base-content/70 min-w-fit">
-                    {filteredQuestions.length} of {questionSet?.questions?.length || 0} questions
+                    {filteredQuestions.length} of {questionSet?.questions
+                        ?.length || 0} questions
                 </div>
             </div>
 
@@ -228,17 +434,36 @@
         <div class="max-w-4xl mx-auto">
             {#if filteredQuestions.length === 0}
                 <div class="text-center py-16">
-                    <div class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center">
-                        <svg class="w-12 h-12 text-base-content/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <div
+                        class="w-24 h-24 mx-auto mb-4 bg-base-200 rounded-full flex items-center justify-center"
+                    >
+                        <svg
+                            class="w-12 h-12 text-base-content/30"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                         </svg>
                     </div>
-                    <h3 class="text-xl font-semibold text-base-content mb-2">No questions found</h3>
-                    <p class="text-base-content/60">Try adjusting your search or filter criteria.</p>
+                    <h3 class="text-xl font-semibold text-base-content mb-2">
+                        No questions found
+                    </h3>
+                    <p class="text-base-content/60">
+                        Try adjusting your search or filter criteria.
+                    </p>
                 </div>
             {:else}
                 {#each filteredQuestions as question, index (question.id)}
-                    {@const userAnswer = questionSet?.answers?.find((a) => a.question_id === question.id)}
+                    {@const userAnswer = questionSet?.answers?.find(
+                        (a) => a.question_id === question.id,
+                    )}
                     <div class="mb-8">
                         <QuestionRenderer
                             {question}
