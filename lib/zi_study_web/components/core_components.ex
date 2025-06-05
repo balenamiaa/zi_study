@@ -36,7 +36,7 @@ defmodule ZiStudyWeb.CoreComponents do
   """
   attr :id, :string, default: "topbar"
   attr :class, :string, default: nil
-  attr :show_on_scroll, :boolean, default: true
+  attr :show_on_scroll, :boolean, default: false
   attr :current_scope, :map, default: %{}
   attr :logout_path, :string, default: "/users/log-out"
   attr :login_path, :string, default: "/users/log-in"
@@ -80,7 +80,7 @@ defmodule ZiStudyWeb.CoreComponents do
             </:text>
           </.app_logo>
         </div>
-        <div :if={@nav_links != []} class="navbar-center hidden lg:flex">
+        <div :if={@nav_links != []} class="navbar-center hidden md:flex">
           <ul class="menu menu-horizontal px-1 gap-3">
             {render_slot(@nav_links)}
           </ul>
@@ -142,7 +142,10 @@ defmodule ZiStudyWeb.CoreComponents do
     <script :if={@show_on_scroll}>
       document.addEventListener("DOMContentLoaded", function() {
         const topbar = document.getElementById("<%= @id %>");
-        const delta = 50;
+
+        // TODO: This can't currently handle deltas more than 0, because then it won't pickup granular scrolls.
+        // We can fix this by accumulating the delta and only applying it when the scroll is stopped.
+        const delta = 0;
 
         let lastScrollTop = 0;
 
@@ -183,7 +186,7 @@ defmodule ZiStudyWeb.CoreComponents do
 
   def mobile_menu(assigns) do
     ~H"""
-    <div class={["dropdown lg:hidden", @class]}>
+    <div class={["dropdown md:hidden", @class]}>
       <label tabindex="0" class="btn btn-ghost btn-circle hover:bg-base-200 transition-colors">
         <.icon name="hero-bars-3-mini" class="size-5 text-base-content" />
       </label>
@@ -228,7 +231,7 @@ defmodule ZiStudyWeb.CoreComponents do
           {render_slot(@logo)}
         </div>
       </div>
-      <div :if={@text != []} class="hidden md:flex flex-col">
+      <div :if={@text != []} class="hidden sm:flex flex-col">
         {render_slot(@text)}
       </div>
     </a>

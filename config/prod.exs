@@ -17,3 +17,5 @@ config :swoosh, local: false
 
 # Do not print debug messages in production
 config :logger, level: :info
+
+config :zi_study, ZiStudyWeb.Endpoint, force_ssl: [hsts: true]
