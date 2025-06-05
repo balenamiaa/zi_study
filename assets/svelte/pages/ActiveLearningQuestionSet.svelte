@@ -1,9 +1,11 @@
 <script>
+    import { SearchIcon, PlusIcon, CheckIcon } from "lucide-svelte";
     import FilterPanel from "../components/questions/FilterPanel.svelte";
     import QuestionsOverview from "../components/questions/QuestionsOverview.svelte";
     import QuestionRenderer from "../components/questions/QuestionRenderer.svelte";
-    import { SearchIcon } from "lucide-svelte";
-    let { live, questionSet } = $props();
+    import InlineEdit from "../components/InlineEdit.svelte";
+    import Button from "../components/Button.svelte";
+    let { live, questionSet, userQuestionSets, questions, currentUser } = $props();
 
     // State for filtering and searching
     let searchQuery = $state("");
@@ -11,6 +13,12 @@
     let difficultyRange = $state([1, 5]);
     let answerStatus = $state("all"); // 'all', 'answered', 'unanswered'
     let currentQuestionIndex = $state(0);
+    
+    // State for question adding
+    let showAddQuestions = $state(false);
+    let addQuestionsSearch = $state("");
+    let selectedQuestionIds = $state(new Set());
+    let currentAddQuestionsPage = $state(1);
 
     // Questions container reference for scrolling
     let questionsContainer;
@@ -111,6 +119,70 @@
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(detectCurrentQuestion, 100);
     }
+
+    // Functions for inline editing
+    function handleFieldUpdate(field, value) {
+        live.pushEvent("update_question_set", { field, value });
+    }
+
+    // Functions for adding questions
+    function toggleAddQuestions() {
+        showAddQuestions = !showAddQuestions;
+        if (showAddQuestions) {
+            loadAvailableQuestions();
+        } else {
+            live.pushEvent("clear_questions");
+        }
+    }
+
+    function loadAvailableQuestions() {
+        live.pushEvent("load_questions", {
+            page_number: currentAddQuestionsPage,
+            search_query: addQuestionsSearch,
+        });
+    }
+
+    function handleAddQuestionsSearch() {
+        currentAddQuestionsPage = 1;
+        loadAvailableQuestions();
+    }
+
+    function handleAddQuestionsPageChange(page) {
+        currentAddQuestionsPage = page;
+        loadAvailableQuestions();
+    }
+
+    function toggleQuestionSelection(questionId) {
+        if (selectedQuestionIds.has(questionId)) {
+            selectedQuestionIds.delete(questionId);
+        } else {
+            selectedQuestionIds.add(questionId);
+        }
+        selectedQuestionIds = new Set(selectedQuestionIds); // Trigger reactivity
+    }
+
+    function selectAllQuestions() {
+        if (questions?.items) {
+            questions.items.forEach(q => selectedQuestionIds.add(q.id));
+            selectedQuestionIds = new Set(selectedQuestionIds);
+        }
+    }
+
+    function clearQuestionSelection() {
+        selectedQuestionIds.clear();
+        selectedQuestionIds = new Set(selectedQuestionIds);
+    }
+
+    function handleAddSelectedQuestions() {
+        if (selectedQuestionIds.size === 0) return;
+
+        const questionIdsArray = Array.from(selectedQuestionIds).map(String);
+        live.pushEvent("add_questions_to_set", {
+            question_ids: questionIdsArray
+        });
+        
+        selectedQuestionIds.clear();
+    }
 </script>
 
 <div class="min-h-screen bg-base-100 flex flex-col gap-4">
@@ -118,22 +190,47 @@
     <div class="bg-base-200 border-b border-base-300">
         <div class="max-w-7xl mx-auto p-2 md:p-4">
             <div class="flex items-start justify-between mb-4">
-                <div>
-                    <h1 class="text-3xl font-bold text-base-content">
-                        {questionSet?.title || "Loading..."}
-                    </h1>
-                    {#if questionSet?.description}
-                        <p class="text-base-content/70 mt-2">
-                            {questionSet.description}
-                        </p>
-                    {/if}
+                <div class="flex-1 mr-4">
+                    <!-- Editable Title -->
+                    <div class="mb-2">
+                        <InlineEdit
+                            bind:value={questionSet.title}
+                            placeholder="Question Set Title"
+                            type="text"
+                            disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
+                            onSave={(value) => handleFieldUpdate("title", value)}
+                            class="text-3xl font-bold text-base-content"
+                        />
+                    </div>
+
+                    <!-- Editable Description -->
+                    <div class="mt-2">
+                        <InlineEdit
+                            bind:value={questionSet.description}
+                            placeholder="Add a description..."
+                            type="textarea"
+                            disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
+                            onSave={(value) => handleFieldUpdate("description", value)}
+                            class="text-base-content/70"
+                        />
+                    </div>
                 </div>
 
-                {#if questionSet?.is_private}
-                    <div class="badge badge-secondary">Private</div>
-                {:else}
-                    <div class="badge badge-primary">Public</div>
-                {/if}
+                <!-- Editable Privacy Toggle -->
+                <div class="flex flex-col items-end gap-2">
+                    <InlineEdit
+                        bind:value={questionSet.is_private}
+                        type="boolean"
+                        disabled={!questionSet?.owner || questionSet.owner.email !== currentUser?.email}
+                        onSave={(value) => handleFieldUpdate("is_private", value)}
+                    />
+                    
+                    {#if questionSet?.owner}
+                        <div class="text-xs text-base-content/50">
+                            by {questionSet.owner.email}
+                        </div>
+                    {/if}
+                </div>
             </div>
 
             <!-- Tags -->
@@ -243,6 +340,164 @@
         />
     {/if}
 
+    <!-- Add Questions Section -->
+    {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
+        <div class="bg-base-100 border-b border-base-300">
+            <div class="max-w-7xl mx-auto p-2 md:p-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-base-content">
+                        Manage Questions
+                    </h3>
+                    <Button
+                        variant={showAddQuestions ? "error" : "primary"}
+                        onclick={toggleAddQuestions}
+                        class="gap-2"
+                    >
+                        <PlusIcon class="h-4 w-4" />
+                        {showAddQuestions ? "Cancel" : "Add Questions"}
+                    </Button>
+                </div>
+
+                {#if showAddQuestions}
+                    <div class="mt-4 space-y-4">
+                        <!-- Search for questions -->
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <label for="add-questions-search" class="input relative flex-1">
+                                <SearchIcon class="h-5 w-5" />
+                                <input
+                                    type="search"
+                                    bind:value={addQuestionsSearch}
+                                    oninput={handleAddQuestionsSearch}
+                                    placeholder="Search available questions..."
+                                    class="grow"
+                                />
+                            </label>
+                        </div>
+
+                        <!-- Questions List -->
+                        <div class="border border-base-300 rounded-lg">
+                            {#if !questions}
+                                <div class="p-8 text-center">
+                                    <div class="loading loading-spinner loading-md text-primary"></div>
+                                    <p class="mt-2 text-base-content/60">Loading questions...</p>
+                                </div>
+                            {:else if questions.items.length === 0}
+                                <div class="p-8 text-center">
+                                    <div class="w-16 h-16 mx-auto mb-3 bg-base-200 rounded-full flex items-center justify-center">
+                                        <SearchIcon class="h-8 w-8 text-base-content/30" />
+                                    </div>
+                                    <h4 class="font-medium text-base-content mb-1">No questions found</h4>
+                                    <p class="text-sm text-base-content/60">
+                                        {addQuestionsSearch ? "Try a different search term" : "All questions are already in this set"}
+                                    </p>
+                                </div>
+                            {:else}
+                                <!-- Selection controls -->
+                                <div class="bg-base-200 p-3 border-b border-base-300">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-4">
+                                            <span class="text-sm font-medium">
+                                                {selectedQuestionIds.size} of {questions.items.length} selected
+                                            </span>
+                                            <div class="flex gap-2">
+                                                <Button variant="outline" size="xs" onclick={selectAllQuestions}>
+                                                    Select All
+                                                </Button>
+                                                <Button variant="ghost" size="xs" onclick={clearQuestionSelection}>
+                                                    Clear
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onclick={handleAddSelectedQuestions}
+                                            disabled={selectedQuestionIds.size === 0}
+                                            class="gap-2"
+                                        >
+                                            <PlusIcon class="h-4 w-4" />
+                                            Add {selectedQuestionIds.size} Question(s)
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <!-- Questions list -->
+                                <div class="max-h-80 overflow-y-auto">
+                                    {#each questions.items as question (question.id)}
+                                        {@const isSelected = selectedQuestionIds.has(question.id)}
+                                        <div
+                                            class="flex items-center gap-3 p-3 border-b border-base-300 last:border-b-0 hover:bg-base-50 transition-colors cursor-pointer"
+                                            onclick={() => toggleQuestionSelection(question.id)}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onchange={() => toggleQuestionSelection(question.id)}
+                                                class="checkbox checkbox-primary checkbox-sm"
+                                            />
+
+                                            <div class="flex-1 min-w-0">
+                                                <p class="font-medium text-base-content line-clamp-2">
+                                                    {question.data.question_text || "Untitled Question"}
+                                                </p>
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <span class="badge badge-xs badge-outline">
+                                                        {question.data.question_type || "unknown"}
+                                                    </span>
+                                                    {#if question.data.difficulty}
+                                                        <span class="badge badge-xs badge-secondary">
+                                                            Level {question.data.difficulty}
+                                                        </span>
+                                                    {/if}
+                                                </div>
+                                            </div>
+
+                                            {#if isSelected}
+                                                <CheckIcon class="h-4 w-4 text-success" />
+                                            {/if}
+                                        </div>
+                                    {/each}
+                                </div>
+
+                                <!-- Pagination -->
+                                {#if questions.total_pages > 1}
+                                    <div class="p-4 border-t border-base-300">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm text-base-content/60">
+                                                Page {questions.page_number} of {questions.total_pages}
+                                                ({questions.total_items} total)
+                                            </span>
+                                            <div class="join">
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    disabled={questions.page_number <= 1}
+                                                    onclick={() => handleAddQuestionsPageChange(questions.page_number - 1)}
+                                                    class="join-item"
+                                                >
+                                                    Prev
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    disabled={questions.page_number >= questions.total_pages}
+                                                    onclick={() => handleAddQuestionsPageChange(questions.page_number + 1)}
+                                                    class="join-item"
+                                                >
+                                                    Next
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {/if}
+                            {/if}
+                        </div>
+                    </div>
+                {/if}
+            </div>
+        </div>
+    {/if}
+
     <!-- Questions Container with improved styling and scroll detection -->
     <div
         bind:this={questionsContainer}
@@ -289,6 +544,7 @@
                             isActive={index === currentQuestionIndex}
                             {userAnswer}
                             {live}
+                            {userQuestionSets}
                         />
                     </div>
                 {/each}

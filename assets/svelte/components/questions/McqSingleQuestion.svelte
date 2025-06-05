@@ -10,6 +10,8 @@
         clearAnswer,
         questionNumber,
         live,
+        questionId = null,
+        userQuestionSets = null,
     } = $props();
 
     let selectedOption = $state(userAnswer?.data?.selected_index ?? null);
@@ -79,6 +81,9 @@
         {isAnswered}
         bind:showExplanation
         onclearAnswer={handleClearAnswer}
+        {questionId}
+        {live}
+        {userQuestionSets}
     >
         {#if data.explanation && isAnswered}
             <ExplanationPanel explanation={data.explanation} />

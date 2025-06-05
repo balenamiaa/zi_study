@@ -1,5 +1,7 @@
 <script>
+    import { FolderPlusIcon } from "lucide-svelte";
     import MarkdownContent from "../MarkdownContent.svelte";
+    import AddToSetsModal from "./AddToSetsModal.svelte";
 
     let {
         questionNumber,
@@ -9,9 +11,14 @@
         isAnswered = false,
         showExplanation = $bindable(false),
         onclearAnswer,
+        questionId,
+        live,
+        userQuestionSets = null,
         class: userClass = "",
         children,
     } = $props();
+
+    let showAddToSetsModal = $state(false);
 
     function toggleExplanation() {
         showExplanation = !showExplanation;
@@ -21,6 +28,14 @@
         if (onclearAnswer) {
             onclearAnswer();
         }
+    }
+
+    function openAddToSetsModal() {
+        showAddToSetsModal = true;
+    }
+
+    function closeAddToSetsModal() {
+        showAddToSetsModal = false;
     }
 </script>
 
@@ -93,11 +108,24 @@
         </div>
 
         <!-- Action Bar -->
-        {#if isAnswered}
-            <div class="flex justify-center w-full sm:w-auto sm:justify-end">
-                <div
-                    class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-base-100 to-base-200/50 border border-base-300/60 rounded-full shadow-md backdrop-blur-sm hover:shadow-lg transition-all duration-300"
-                >
+        <div class="flex justify-center w-full sm:w-auto sm:justify-end">
+            <div
+                class="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-base-100 to-base-200/50 border border-base-300/60 rounded-full shadow-md backdrop-blur-sm hover:shadow-lg transition-all duration-300"
+            >
+                <!-- Add to Sets Button (always visible) -->
+                <div class="tooltip tooltip-top" data-tip="Add to Sets">
+                    <button
+                        onclick={openAddToSetsModal}
+                        aria-label="Add to Question Sets"
+                        class="btn btn-circle btn-xs bg-primary/15 hover:bg-primary/25 border-primary/30 hover:border-primary/40 text-primary hover:text-primary-content transition-all duration-200 hover:scale-105 active:scale-95"
+                    >
+                        <FolderPlusIcon class="w-3.5 h-3.5" />
+                    </button>
+                </div>
+
+                {#if isAnswered}
+                    <div class="w-px h-4 bg-base-300/50"></div>
+
                     {#if hasExplanation}
                         <div
                             class="tooltip tooltip-top"
@@ -152,9 +180,9 @@
                             </svg>
                         </button>
                     </div>
-                </div>
+                {/if}
             </div>
-        {/if}
+        </div>
     </div>
 </div>
 
@@ -164,6 +192,15 @@
         {@render children()}
     {/if}
 {/if}
+
+<!-- Add to Sets Modal -->
+<AddToSetsModal
+    isOpen={showAddToSetsModal}
+    onClose={closeAddToSetsModal}
+    {questionId}
+    {live}
+    {userQuestionSets}
+/>
 
 <style>
     /* Enhanced button animations */

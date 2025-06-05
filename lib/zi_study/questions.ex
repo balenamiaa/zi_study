@@ -532,7 +532,7 @@ defmodule ZiStudy.Questions do
       iex> get_user_answers_for_questions(user_id, questions)
       [%Answer{...}, %Answer{...}]
   """
-    def get_user_answers_for_questions(user_id, questions) when is_list(questions) do
+  def get_user_answers_for_questions(user_id, questions) when is_list(questions) do
     question_ids =
       questions
       |> Enum.map(fn
@@ -719,21 +719,24 @@ defmodule ZiStudy.Questions do
 
   defp validate_answer_for_question_type(answer, question) do
     case {answer, question} do
-      {%Processed.Answer.McqSingleAnswer{selected_index: idx}, %Processed.Question.McqSingle{options: options}} ->
+      {%Processed.Answer.McqSingleAnswer{selected_index: idx},
+       %Processed.Question.McqSingle{options: options}} ->
         if idx >= 0 and idx < length(options) do
           :ok
         else
           {:error, :invalid_option_index}
         end
 
-      {%Processed.Answer.McqMultiAnswer{selected_indices: indices}, %Processed.Question.McqMulti{options: options}} ->
+      {%Processed.Answer.McqMultiAnswer{selected_indices: indices},
+       %Processed.Question.McqMulti{options: options}} ->
         if Enum.all?(indices, fn idx -> idx >= 0 and idx < length(options) end) do
           :ok
         else
           {:error, :invalid_option_indices}
         end
 
-      {%Processed.Answer.ClozeAnswer{answers: answers}, %Processed.Question.Cloze{answers: expected_answers}} ->
+      {%Processed.Answer.ClozeAnswer{answers: answers},
+       %Processed.Question.Cloze{answers: expected_answers}} ->
         if length(answers) == length(expected_answers) do
           :ok
         else
@@ -994,6 +997,168 @@ defmodule ZiStudy.Questions do
 
       answer ->
         Repo.delete(answer)
+    end
+  end
+
+  @doc """
+  Gets question sets accessible to a user (owned + public) with pagination and search.
+  Returns {question_sets, total_count}.
+  """
+  def get_user_accessible_question_sets(
+        user_id,
+        search_query \\ "",
+        page_number \\ 1,
+        page_size \\ 15
+      ) do
+    offset = (page_number - 1) * page_size
+    search_pattern = "%#{String.downcase(search_query)}%"
+
+    base_query =
+      from qs in QuestionSet,
+        left_join: u in User,
+        on: qs.owner_id == u.id,
+        where: qs.owner_id == ^user_id or not qs.is_private,
+        preload: [:tags, :owner]
+
+    # Apply search filter if provided
+    filtered_query =
+      if search_query != "" do
+        from qs in base_query,
+          where:
+            fragment("LOWER(?) LIKE ?", qs.title, ^search_pattern) or
+              fragment("LOWER(?) LIKE ?", qs.description, ^search_pattern)
+      else
+        base_query
+      end
+
+    # Get total count
+    total_count =
+      filtered_query
+      |> exclude(:preload)
+      |> exclude(:order_by)
+      |> Repo.aggregate(:count, :id)
+
+    # Get paginated results
+    question_sets =
+      filtered_query
+      |> order_by([qs], desc: qs.updated_at)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {question_sets, total_count}
+  end
+
+  @doc """
+  Gets questions that are not in a specific question set with pagination and search.
+  Returns {questions, total_count}.
+  """
+  def get_questions_not_in_set(
+        question_set_id,
+        search_query \\ "",
+        page_number \\ 1,
+        page_size \\ 15
+      ) do
+    offset = (page_number - 1) * page_size
+    search_pattern = "%#{String.downcase(search_query)}%"
+
+    # Get IDs of questions already in the set
+    questions_in_set_query =
+      from qsj in "question_set_questions",
+        where: qsj.question_set_id == ^question_set_id,
+        select: qsj.question_id
+
+    base_query =
+      from q in Question,
+        where: q.id not in subquery(questions_in_set_query)
+
+    # Apply search filter if provided
+    filtered_query =
+      if search_query != "" do
+        from q in base_query,
+          where:
+            fragment("LOWER(?) LIKE ?", q.data["question_text"], ^search_pattern) or
+              fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
+      else
+        base_query
+      end
+
+    # Get total count
+    total_count =
+      filtered_query
+      |> Repo.aggregate(:count, :id)
+
+    # Get paginated results
+    questions =
+      filtered_query
+      |> order_by([q], desc: q.updated_at)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {questions, total_count}
+  end
+
+  @doc """
+  Bulk deletes question sets owned by a user.
+  Only deletes sets that are actually owned by the user for security.
+  """
+  def bulk_delete_question_sets(user_id, question_set_ids) when is_list(question_set_ids) do
+    # Only delete sets owned by the user
+    {count_deleted, _} =
+      from(qs in QuestionSet,
+        where: qs.id in ^question_set_ids and qs.owner_id == ^user_id
+      )
+      |> Repo.delete_all()
+
+    {:ok, count_deleted}
+  end
+
+  @doc """
+  Quick creates a private question set with just a name.
+  Used for the quick create functionality in modals.
+  """
+  def quick_create_question_set(%User{} = user, title) when is_binary(title) do
+    attrs = %{
+      title: String.trim(title),
+      description: nil,
+      is_private: true
+    }
+
+    create_question_set(user, attrs)
+  end
+
+  @doc """
+  Adds a question to multiple question sets.
+  Only adds to sets owned by the user for security.
+  """
+  def add_question_to_multiple_sets(user_id, question_id, question_set_ids)
+      when is_list(question_set_ids) do
+    # Verify user owns all the sets
+    owned_sets =
+      from(qs in QuestionSet,
+        where: qs.id in ^question_set_ids and qs.owner_id == ^user_id,
+        select: qs.id
+      )
+      |> Repo.all()
+
+    # Add question to each owned set
+    results =
+      Enum.map(owned_sets, fn set_id ->
+        case get_question_set(set_id) do
+          nil -> {:error, :set_not_found}
+          question_set -> add_questions_to_set(question_set, [question_id], user_id)
+        end
+      end)
+
+    # Count successes and failures
+    successes = Enum.count(results, &match?({:ok, _}, &1))
+    failures = Enum.count(results, &match?({:error, _}, &1))
+
+    if failures == 0 do
+      {:ok, %{added_to_sets: successes}}
+    else
+      {:error, %{added_to_sets: successes, failed_sets: failures}}
     end
   end
 end

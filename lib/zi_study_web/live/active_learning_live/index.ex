@@ -59,4 +59,37 @@ defmodule ZiStudyWeb.ActiveLearningLive.Index do
   def owner_to_dto(owner) when is_nil(owner) do
     nil
   end
+
+  def handle_event("create_question_set", %{"title" => title, "description" => description, "is_private" => is_private}, socket) do
+    current_user = socket.assigns.current_scope.user
+
+    attrs = %{
+      title: title,
+      description: if(description == "", do: nil, else: description),
+      is_private: is_private
+    }
+
+    case Questions.create_question_set(current_user, attrs) do
+      {:ok, _question_set} ->
+        {:noreply,
+         socket
+         |> assign(:question_sets, get_question_sets(current_user.id))
+         |> put_flash(:info, "Question set created successfully")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Failed to create question set")}
+    end
+  end
+
+  def handle_event("bulk_delete_question_sets", %{"question_set_ids" => question_set_ids}, socket) do
+    current_user = socket.assigns.current_scope.user
+    question_set_id_ints = Enum.map(question_set_ids, &String.to_integer/1)
+
+    {:ok, count_deleted} = Questions.bulk_delete_question_sets(current_user.id, question_set_id_ints)
+
+    {:noreply,
+     socket
+     |> assign(:question_sets, get_question_sets(current_user.id))
+     |> put_flash(:info, "Deleted #{count_deleted} question set(s) successfully")}
+  end
 end

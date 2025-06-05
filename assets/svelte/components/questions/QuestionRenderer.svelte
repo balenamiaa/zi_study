@@ -12,6 +12,7 @@
         isActive = false,
         userAnswer = null,
         live,
+        userQuestionSets = null,
     } = $props();
 
     let questionType = $derived(question?.data?.question_type || "unknown");
@@ -45,6 +46,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else if questionType === "mcq_multi"}
             <McqMultiQuestion
@@ -54,6 +57,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else if questionType === "true_false"}
             <TrueFalseQuestion
@@ -63,6 +68,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else if questionType === "cloze"}
             <ClozeQuestion
@@ -72,6 +79,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else if questionType === "written"}
             <WrittenQuestion
@@ -81,6 +90,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else if questionType === "emq"}
             <EmqQuestion
@@ -90,6 +101,8 @@
                 {clearAnswer}
                 {questionNumber}
                 {live}
+                questionId={question.id}
+                {userQuestionSets}
             />
         {:else}
             <div class="alert alert-warning">
