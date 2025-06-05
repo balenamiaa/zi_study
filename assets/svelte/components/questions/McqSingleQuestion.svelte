@@ -14,8 +14,11 @@
 
     let selectedOption = $state(userAnswer?.data?.selected_index ?? null);
     let showExplanation = $state(false);
-    let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let isSubmitting = $state(false);
+    let answerSubmittedHandleRef = $state(null);
+    let answerResetHandleRef = $state(null);
+
+    let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
 
     function handleOptionSelect(index) {
         if (!isAnswered && !isSubmitting) {
@@ -31,39 +34,37 @@
         clearAnswer();
     }
 
-    // Listen for backend events
+    function handleAnswerSubmitted() {
+        isSubmitting = false;
+    }
+
+    function handleAnswerReset(payload) {
+        const eventQuestionId = payload.question_id;
+        const currentQuestionId =
+            data?.id?.toString() || questionNumber?.toString();
+        if (eventQuestionId === currentQuestionId) {
+            selectedOption = null;
+            isSubmitting = false;
+        }
+    }
+
     $effect(() => {
         if (live) {
-            const handleAnswerSubmitted = () => {
-                isSubmitting = false;
-            };
-
-            const handleAnswerReset = (payload) => {
-                const eventQuestionId = payload.question_id;
-                const currentQuestionId =
-                    data?.id?.toString() || questionNumber?.toString();
-                if (eventQuestionId === currentQuestionId) {
-                    selectedOption = null;
-                    isSubmitting = false;
-                }
-            };
-
-            live.handleEvent("answer_submitted", handleAnswerSubmitted);
-            live.handleEvent("answer_reset", handleAnswerReset);
+            answerSubmittedHandleRef = live.handleEvent(
+                "answer_submitted",
+                handleAnswerSubmitted,
+            );
+            answerResetHandleRef = live.handleEvent(
+                "answer_reset",
+                handleAnswerReset,
+            );
 
             return () => {
                 if (live) {
-                    live.removeHandleEvent("answer_submitted", handleAnswerSubmitted);
-                    live.removeHandleEvent("answer_reset", handleAnswerReset);
+                    live.removeHandleEvent(answerSubmittedHandleRef);
+                    live.removeHandleEvent(answerResetHandleRef);
                 }
             };
-        }
-    });
-
-    // Reset submitting state when answer is received
-    $effect(() => {
-        if (userAnswer) {
-            isSubmitting = false;
         }
     });
 </script>
@@ -123,10 +124,10 @@
                     disabled={isAnswered || isSubmitting}
                     showSpinner={isSubmitting && isSelected}
                     variant={showAsCorrect
-                        ? 'success'
+                        ? "success"
                         : showAsIncorrect
-                          ? 'error'
-                          : 'primary'}
+                          ? "error"
+                          : "primary"}
                 />
                 <div class="flex-1">
                     <span

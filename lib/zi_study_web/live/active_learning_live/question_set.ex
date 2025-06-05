@@ -86,7 +86,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     current_user = socket.assigns.current_scope.user
     question_id_int = String.to_integer(question_id)
 
-    # Get the question to check its type
     question = Questions.get_question(question_id_int)
 
     case question do
@@ -94,7 +93,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
         {:noreply, put_flash(socket, :error, "Question not found")}
 
       %{data: %{"question_type" => "written"}} ->
-        # Written questions are always saved as unevaluated (2) for self-evaluation
         case Questions.upsert_answer(current_user.id, question_id_int, answer, 2) do
           {:ok, _answer} ->
             updated_question_set =
@@ -110,7 +108,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
         end
 
       _ ->
-        # For all other question types, use the normal correctness checking
         case Questions.check_answer_correctness(question_id_int, answer) do
           {:ok, is_correct} ->
             is_correct_int = if is_correct, do: 1, else: 0
@@ -149,7 +146,11 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-  def handle_event("self_evaluate_answer", %{"question_id" => question_id, "is_correct" => is_correct}, socket) do
+  def handle_event(
+        "self_evaluate_answer",
+        %{"question_id" => question_id, "is_correct" => is_correct},
+        socket
+      ) do
     current_user = socket.assigns.current_scope.user
     question_id_int = String.to_integer(question_id)
     is_correct_int = if is_correct, do: 1, else: 0

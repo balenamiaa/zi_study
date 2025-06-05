@@ -32,10 +32,10 @@
 
 <div
     class="question-container {isActive
-        ? 'ring-2 ring-primary shadow-lg'
-        : ''} bg-base-200 rounded-lg transition-all duration-300 border border-base-300"
+        ? 'ring-1 md:ring-2 ring-primary shadow-lg'
+        : ''} bg-base-200 rounded-md md:rounded-lg transition-all duration-300 border border-base-300"
 >
-    <div class="p-6">
+    <div class="p-3 md:p-6">
         <!-- Question Content -->
         {#if questionType === "mcq_single"}
             <McqSingleQuestion

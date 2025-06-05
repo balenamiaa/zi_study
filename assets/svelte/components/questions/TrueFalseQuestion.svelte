@@ -17,6 +17,9 @@
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let isSubmitting = $state(false);
 
+    let answerSubmittedHandleRef = $state(null);
+    let answerResetHandleRef = $state(null);
+
     function handleAnswerSelect(answer) {
         if (!isAnswered && !isSubmitting) {
             selectedAnswer = answer;
@@ -31,35 +34,41 @@
         clearAnswer();
     }
 
-    // Listen for backend events
+    function handleAnswerSubmitted() {
+        isSubmitting = false;
+    }
+
+    function handleAnswerReset(payload) {
+        const eventQuestionId = payload.question_id;
+        const currentQuestionId =
+            data?.id?.toString() || questionNumber?.toString();
+        if (eventQuestionId === currentQuestionId) {
+            selectedAnswer = null;
+            isSubmitting = false;
+        }
+    }
+
     $effect(() => {
         if (live) {
-            const handleAnswerSubmitted = () => {
-                isSubmitting = false;
-            };
-
-            const handleAnswerReset = (payload) => {
-                const eventQuestionId = payload.question_id;
-                const currentQuestionId = data?.id?.toString() || questionNumber?.toString();
-                if (eventQuestionId === currentQuestionId) {
-                    selectedAnswer = null;
-                    isSubmitting = false;
-                }
-            };
-
-            live.handleEvent("answer_submitted", handleAnswerSubmitted);
-            live.handleEvent("answer_reset", handleAnswerReset);
+            console.log("live", live);
+            answerSubmittedHandleRef = live.handleEvent(
+                "answer_submitted",
+                handleAnswerSubmitted,
+            );
+            answerResetHandleRef = live.handleEvent(
+                "answer_reset",
+                handleAnswerReset,
+            );
 
             return () => {
                 if (live) {
-                    live.removeHandleEvent("answer_submitted", handleAnswerSubmitted);
-                    live.removeHandleEvent("answer_reset", handleAnswerReset);
+                    live.removeHandleEvent(answerSubmittedHandleRef);
+                    live.removeHandleEvent(answerResetHandleRef);
                 }
             };
         }
     });
 
-    // Reset submitting state when answer is received
     $effect(() => {
         if (userAnswer) {
             isSubmitting = false;
@@ -91,19 +100,20 @@
     <!-- Answer Options -->
     <div class="space-y-3">
         <label
-            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {
-                isAnswered && data.is_correct_true && selectedAnswer === true
-                    ? 'border-success bg-success/10'
-                    : isAnswered && !data.is_correct_true && selectedAnswer === true
-                    ? 'border-error bg-error/10'
-                    : selectedAnswer === true
+            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {isAnswered &&
+            data.is_correct_true &&
+            selectedAnswer === true
+                ? 'border-success bg-success/10'
+                : isAnswered && !data.is_correct_true && selectedAnswer === true
+                  ? 'border-error bg-error/10'
+                  : selectedAnswer === true
                     ? 'border-primary bg-primary/5'
                     : isAnswered || isSubmitting
-                    ? 'border-base-300'
-                    : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'
-            } {
-                isAnswered || isSubmitting ? 'cursor-default' : 'cursor-pointer'
-            }"
+                      ? 'border-base-300'
+                      : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered ||
+            isSubmitting
+                ? 'cursor-default'
+                : 'cursor-pointer'}"
         >
             <RadioWithSpinner
                 name="true-false-option-{questionNumber}"
@@ -112,11 +122,13 @@
                 onchange={() => handleAnswerSelect(true)}
                 disabled={isAnswered || isSubmitting}
                 showSpinner={isSubmitting && selectedAnswer === true}
-                variant={isAnswered && data.is_correct_true 
-                    ? 'success' 
-                    : isAnswered && selectedAnswer === true && !data.is_correct_true 
-                    ? 'error' 
-                    : 'primary'}
+                variant={isAnswered && data.is_correct_true
+                    ? "success"
+                    : isAnswered &&
+                        selectedAnswer === true &&
+                        !data.is_correct_true
+                      ? "error"
+                      : "primary"}
             />
             <div class="flex-1">
                 <div class="flex items-center gap-3">
@@ -125,20 +137,43 @@
                     >
                         T
                     </div>
-                    <span class="text-base-content font-medium {
-                        isAnswered && data.is_correct_true 
-                            ? 'text-success' 
-                            : isAnswered && selectedAnswer === true && !data.is_correct_true 
-                            ? 'text-error' 
-                            : ''
-                    }">True</span>
+                    <span
+                        class="text-base-content font-medium {isAnswered &&
+                        data.is_correct_true
+                            ? 'text-success'
+                            : isAnswered &&
+                                selectedAnswer === true &&
+                                !data.is_correct_true
+                              ? 'text-error'
+                              : ''}">True</span
+                    >
                     {#if isAnswered && data.is_correct_true}
-                        <svg class="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <svg
+                            class="w-4 h-4 text-success"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 13l4 4L19 7"
+                            />
                         </svg>
                     {:else if isAnswered && selectedAnswer === true && !data.is_correct_true}
-                        <svg class="w-4 h-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg
+                            class="w-4 h-4 text-error"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                            />
                         </svg>
                     {/if}
                 </div>
@@ -146,19 +181,20 @@
         </label>
 
         <label
-            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {
-                isAnswered && !data.is_correct_true && selectedAnswer === false
-                    ? 'border-success bg-success/10'
-                    : isAnswered && data.is_correct_true && selectedAnswer === false
-                    ? 'border-error bg-error/10'
-                    : selectedAnswer === false
+            class="flex items-start gap-3 p-4 rounded-lg border transition-all duration-200 {isAnswered &&
+            !data.is_correct_true &&
+            selectedAnswer === false
+                ? 'border-success bg-success/10'
+                : isAnswered && data.is_correct_true && selectedAnswer === false
+                  ? 'border-error bg-error/10'
+                  : selectedAnswer === false
                     ? 'border-primary bg-primary/5'
                     : isAnswered || isSubmitting
-                    ? 'border-base-300'
-                    : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'
-            } {
-                isAnswered || isSubmitting ? 'cursor-default' : 'cursor-pointer'
-            }"
+                      ? 'border-base-300'
+                      : 'border-base-300 hover:border-primary/50 cursor-pointer hover:bg-base-100'} {isAnswered ||
+            isSubmitting
+                ? 'cursor-default'
+                : 'cursor-pointer'}"
         >
             <RadioWithSpinner
                 name="true-false-option-{questionNumber}"
@@ -167,11 +203,13 @@
                 onchange={() => handleAnswerSelect(false)}
                 disabled={isAnswered || isSubmitting}
                 showSpinner={isSubmitting && selectedAnswer === false}
-                variant={isAnswered && !data.is_correct_true 
-                    ? 'success' 
-                    : isAnswered && selectedAnswer === false && data.is_correct_true 
-                    ? 'error' 
-                    : 'primary'}
+                variant={isAnswered && !data.is_correct_true
+                    ? "success"
+                    : isAnswered &&
+                        selectedAnswer === false &&
+                        data.is_correct_true
+                      ? "error"
+                      : "primary"}
             />
             <div class="flex-1">
                 <div class="flex items-center gap-3">
@@ -180,20 +218,43 @@
                     >
                         F
                     </div>
-                    <span class="text-base-content font-medium {
-                        isAnswered && !data.is_correct_true 
-                            ? 'text-success' 
-                            : isAnswered && selectedAnswer === false && data.is_correct_true 
-                            ? 'text-error' 
-                            : ''
-                    }">False</span>
+                    <span
+                        class="text-base-content font-medium {isAnswered &&
+                        !data.is_correct_true
+                            ? 'text-success'
+                            : isAnswered &&
+                                selectedAnswer === false &&
+                                data.is_correct_true
+                              ? 'text-error'
+                              : ''}">False</span
+                    >
                     {#if isAnswered && !data.is_correct_true}
-                        <svg class="w-4 h-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <svg
+                            class="w-4 h-4 text-success"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 13l4 4L19 7"
+                            />
                         </svg>
                     {:else if isAnswered && selectedAnswer === false && data.is_correct_true}
-                        <svg class="w-4 h-4 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <svg
+                            class="w-4 h-4 text-error"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                            />
                         </svg>
                     {/if}
                 </div>

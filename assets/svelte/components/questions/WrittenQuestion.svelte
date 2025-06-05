@@ -18,6 +18,8 @@
     let isSubmitting = $state(false);
     let showSelfEvaluation = $state(false);
 
+    let answerSubmittedHandleRef = $state(null);
+
     function handleSubmitAnswer() {
         if (answerText.trim() && !isSubmitting) {
             isSubmitting = true;
@@ -49,20 +51,20 @@
         showSelfEvaluation = false;
     }
 
+    function handleAnswerSubmitted() {
+        isSubmitting = false;
+    }
+
     $effect(() => {
         if (live) {
-            const handleAnswerSubmitted = () => {
-                isSubmitting = false;
-            };
-
-            live.handleEvent("answer_submitted", handleAnswerSubmitted);
+            answerSubmittedHandleRef = live.handleEvent(
+                "answer_submitted",
+                handleAnswerSubmitted,
+            );
 
             return () => {
                 if (live) {
-                    live.removeHandleEvent(
-                        "answer_submitted",
-                        handleAnswerSubmitted,
-                    );
+                    live.removeHandleEvent(answerSubmittedHandleRef);
                 }
             };
         }

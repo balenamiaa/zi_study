@@ -20,9 +20,11 @@
     );
 
     let showExplanation = $state(false);
-    let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let isSubmitting = $state(false);
+    let answerSubmittedHandleRef = $state(null);
+    let answerResetHandleRef = $state(null);
 
+    let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
     let allAnswered = $derived(
         clozes.length > 0 &&
             clozeAnswers.every((answer) => answer.trim() !== ""),
@@ -52,32 +54,28 @@
         }
     }
 
-    // Listen for backend events
+    function handleAnswerSubmitted() {
+        isSubmitting = false;
+    }
+
     $effect(() => {
         if (live) {
-            const handleAnswerSubmitted = () => {
-                isSubmitting = false;
-            };
+            answerSubmittedHandleRef = live.handleEvent(
+                "answer_submitted",
+                handleAnswerSubmitted,
+            );
 
-            live.handleEvent("answer_submitted", handleAnswerSubmitted);
-            live.handleEvent("answer_reset", handleAnswerReset);
+            answerResetHandleRef = live.handleEvent(
+                "answer_reset",
+                handleAnswerReset,
+            );
 
             return () => {
                 if (live) {
-                    live.removeHandleEvent(
-                        "answer_submitted",
-                        handleAnswerSubmitted,
-                    );
-                    live.removeHandleEvent("answer_reset", handleAnswerReset);
+                    live.removeHandleEvent(answerSubmittedHandleRef);
+                    live.removeHandleEvent(answerResetHandleRef);
                 }
             };
-        }
-    });
-
-    // Reset submitting state when answer is received
-    $effect(() => {
-        if (userAnswer) {
-            isSubmitting = false;
         }
     });
 
@@ -262,36 +260,70 @@
                             {#each clozes as cloze, index}
                                 {@const userAnswerText = clozeAnswers[index]}
                                 {@const correctAnswer = data.answers[index]}
-                                {@const isCorrectAnswer = userAnswerText.toLowerCase().trim() === correctAnswer.toLowerCase().trim()}
-                                
+                                {@const isCorrectAnswer =
+                                    userAnswerText.toLowerCase().trim() ===
+                                    correctAnswer.toLowerCase().trim()}
+
                                 <tr class="hover">
                                     <td>
-                                        <div class="badge badge-neutral badge-sm">
+                                        <div
+                                            class="badge badge-neutral badge-sm"
+                                        >
                                             {index + 1}
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="font-mono text-sm {isCorrectAnswer ? 'text-success' : 'text-error'}">
-                                            {userAnswerText || '(empty)'}
+                                        <span
+                                            class="font-mono text-sm {isCorrectAnswer
+                                                ? 'text-success'
+                                                : 'text-error'}"
+                                        >
+                                            {userAnswerText || "(empty)"}
                                         </span>
                                     </td>
                                     <td>
-                                        <span class="font-mono text-sm text-success">
+                                        <span
+                                            class="font-mono text-sm text-success"
+                                        >
                                             {correctAnswer}
                                         </span>
                                     </td>
                                     <td>
                                         {#if isCorrectAnswer}
-                                            <div class="badge badge-success badge-sm gap-1">
-                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                            <div
+                                                class="badge badge-success badge-sm gap-1"
+                                            >
+                                                <svg
+                                                    class="w-3 h-3"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="2"
+                                                        d="M5 13l4 4L19 7"
+                                                    />
                                                 </svg>
                                                 Correct
                                             </div>
                                         {:else}
-                                            <div class="badge badge-error badge-sm gap-1">
-                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                            <div
+                                                class="badge badge-error badge-sm gap-1"
+                                            >
+                                                <svg
+                                                    class="w-3 h-3"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="2"
+                                                        d="M6 18L18 6M6 6l12 12"
+                                                    />
                                                 </svg>
                                                 Wrong
                                             </div>

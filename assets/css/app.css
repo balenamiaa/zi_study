@@ -1,5 +1,5 @@
 @import "tailwindcss" source(none);
-@source "../**/*.{svelte,js}";
+@source "../svelte/**/*.svelte";
 @source "../../lib/**/*.{ex,heex,js}";
 
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
@@ -77,7 +77,7 @@
 }
 
 
-@plugin "../vendor/daisyui-theme" {
+@plugin "daisyui/theme" {
   name: "light";
   default: true;
   prefersdark: false;

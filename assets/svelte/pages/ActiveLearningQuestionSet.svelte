@@ -116,7 +116,7 @@
 <div class="min-h-screen bg-base-100 flex flex-col gap-4">
     <!-- Header -->
     <div class="bg-base-200 border-b border-base-300">
-        <div class="max-w-7xl mx-auto p-4 md:p-6">
+        <div class="max-w-7xl mx-auto p-2 md:p-4">
             <div class="flex items-start justify-between mb-4">
                 <div>
                     <h1 class="text-3xl font-bold text-base-content">
@@ -149,7 +149,7 @@
 
     <!-- Search and Filters -->
     <div class="bg-base-100 border-b border-base-300">
-        <div class="max-w-7xl mx-auto p-4 md:p-6">
+        <div class="max-w-7xl mx-auto p-2 md:p-4">
             <div
                 class="flex flex-col sm:flex-row gap-4 items-start sm:items-center"
             >
@@ -247,7 +247,7 @@
     <div
         bind:this={questionsContainer}
         onscroll={handleScroll}
-        class="h-[70vh] overflow-y-auto p-2 mx-4 md:mx-8 py-3 space-y-3 scroll-smooth pb-64 bg-primary/3 rounded-lg shadow-2xl ring-1 ring-base-300/50 backdrop-blur-sm"
+        class="h-[70vh] overflow-y-auto p-3 md:mx-4 lg:mx-8 space-y-3 scroll-smooth pb-64 bg-primary/3 rounded-lg shadow-2xl ring-1 ring-base-300/50 backdrop-blur-sm"
     >
         <div class="max-w-4xl mx-auto">
             {#if filteredQuestions.length === 0}
