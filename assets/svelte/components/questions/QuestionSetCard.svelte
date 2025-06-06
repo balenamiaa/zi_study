@@ -1,5 +1,5 @@
 <script>
-    let { questionSet, isSelected = false } = $props();
+    let { questionSet, enableNavigation = true, isSelected = false } = $props();
 
     let completionPercentage = $derived.by(() => {
         const total = questionSet.stats.total_answers;
@@ -31,9 +31,9 @@
     class="card {isSelected
         ? 'bg-primary/10 border-2 border-primary'
         : 'bg-base-200'} shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1 group"
-    onclick={navigateToQuestionSet}
+    onclick={enableNavigation ? navigateToQuestionSet : undefined}
     onkeydown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (enableNavigation && (e.key === "Enter" || e.key === " ")) {
             navigateToQuestionSet();
         }
     }}

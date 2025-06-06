@@ -9,7 +9,13 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
       <.svelte
         name="pages/ActiveLearningQuestionSets"
         socket={@socket}
-        props={%{questionSets: @question_sets, availableTags: @available_tags}}
+        props={
+          %{
+            questionSets: @question_sets,
+            availableTags: @available_tags,
+            currentUser: @current_user
+          }
+        }
       />
     </Layouts.active_learning>
     """
@@ -21,7 +27,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
     {:ok,
      socket
      |> assign(:question_sets, get_question_sets(current_user.id))
-     |> assign(:available_tags, get_available_tags())}
+     |> assign(:available_tags, get_available_tags())
+     |> assign(:current_user, owner_to_dto(current_user))}
   end
 
   defp get_question_sets(user_id) do

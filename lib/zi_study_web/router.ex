@@ -80,6 +80,7 @@ defmodule ZiStudyWeb.Router do
       live "/", ActiveLearningLive.Index
       live "/question_sets", ActiveLearningLive.QuestionSets
       live "/question_set/:id", ActiveLearningLive.QuestionSet
+      live "/search_questions", ActiveLearningLive.SearchQuestions
     end
   end
 end

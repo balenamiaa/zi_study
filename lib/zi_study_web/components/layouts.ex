@@ -103,7 +103,7 @@ defmodule ZiStudyWeb.Layouts do
 
     <!-- Desktop Layout Container -->
     <div class="min-h-screen mt-16">
-      <!-- Sidebar - Fixed overlay on all screen sizes -->
+      <!-- Sidebar -->
       <aside
         id="sidebar"
         class="fixed top-16 left-0 h-[calc(100vh-4rem)] w-80 bg-base-200/95 backdrop-blur-md border-r border-base-300 z-50 transform -translate-x-full transition-transform duration-300 shadow-2xl"
@@ -150,6 +150,22 @@ defmodule ZiStudyWeb.Layouts do
 
             <div class="pt-6 space-y-1">
               <h3 class="px-3 text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-3">
+                Questions
+              </h3>
+              <a
+                href={~p"/active-learning/search_questions"}
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-base-300/60 text-base-content hover:text-primary group"
+              >
+                <.icon
+                  name="hero-magnifying-glass-mini"
+                  class="size-5 text-base-content/70 group-hover:text-primary"
+                />
+                <span>Search All Questions</span>
+              </a>
+            </div>
+
+            <div class="pt-6 space-y-1">
+              <h3 class="px-3 text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-3">
                 Study Tools
               </h3>
               <a
@@ -182,7 +198,7 @@ defmodule ZiStudyWeb.Layouts do
           </nav>
         </div>
       </aside>
-      
+
     <!-- Main content area -->
       <div class="min-h-screen">
         <main class="p-4 sm:px-6 lg:px-8">
@@ -193,14 +209,14 @@ defmodule ZiStudyWeb.Layouts do
       </div>
     </div>
 
-    <!-- Wrapped Paper Edge - Always visible sidebar trigger -->
+    <!-- Wrapped Paper Edge -->
     <div
       id="paper-edge"
       class="fixed top-1/2 left-0 z-30 cursor-pointer transform -translate-y-1/2 transition-all duration-300 hover:scale-110 group"
       onclick="openSidebar()"
     >
       <div class="w-8 h-16 bg-gradient-to-r from-base-100 to-base-200 shadow-lg border-r border-t border-b border-base-300 rounded-r-lg relative overflow-hidden">
-        
+
     <!-- Subtle grip dots -->
         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div class="flex flex-col gap-1">
@@ -209,14 +225,14 @@ defmodule ZiStudyWeb.Layouts do
             <div class="w-1 h-1 bg-base-content/20 rounded-full"></div>
           </div>
         </div>
-        
+
     <!-- Glow effect on hover -->
         <div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-r-lg">
         </div>
-        
+
     <!-- Shadow beneath -->
         <div class="absolute top-1 left-1 w-8 h-16 bg-black/10 rounded-r-lg -z-10"></div>
-        
+
     <!-- Tooltip - now shows on group hover -->
         <div class="absolute left-10 top-1/2 transform -translate-y-1/2 bg-base-300 text-base-content text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap shadow-lg">
           Open sidebar
@@ -238,7 +254,7 @@ defmodule ZiStudyWeb.Layouts do
         }
       }
 
-            function openSidebar() {
+      function openSidebar() {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         const paperEdge = document.getElementById('paper-edge');
@@ -250,7 +266,7 @@ defmodule ZiStudyWeb.Layouts do
         document.body.style.overflow = 'hidden';
       }
 
-            function closeSidebar() {
+      function closeSidebar() {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         const paperEdge = document.getElementById('paper-edge');
@@ -267,9 +283,6 @@ defmodule ZiStudyWeb.Layouts do
           closeSidebar();
         }
       });
-
-      // Remove the resize listener that auto-closes sidebar on desktop
-      // since we want the sidebar to be hideable on all screen sizes
     </script>
     """
   end

@@ -14,7 +14,7 @@
     import TextInput from "../components/TextInput.svelte";
     import Modal from "../components/Modal.svelte";
 
-    let { live, questionSets, availableTags } = $props();
+    let { live, questionSets, availableTags, currentUser } = $props();
 
     let searchQuery = $state("");
     let isEditMode = $state(false);
@@ -55,7 +55,9 @@
                 qs.tags.some((tag) => selectedTags.has(tag.id));
 
             // Ownership filter
-            const matchesOwnership = !ownedOnly || qs.owner !== null;
+            const matchesOwnership =
+                !ownedOnly ||
+                (qs.owner !== null && qs.owner.email === currentUser.email);
 
             return matchesSearch && matchesTags && matchesOwnership;
         });
@@ -79,7 +81,7 @@
 
     function selectAll() {
         const ownedSets = filteredQuestionSets.filter(
-            (qs) => qs.owner !== null,
+            (qs) => qs.owner !== null && qs.owner.email === currentUser.email,
         );
         ownedSets.forEach((qs) => selectedSetIds.add(qs.id));
         selectedSetIds = new Set(selectedSetIds);
@@ -443,7 +445,9 @@
             >
                 {#each filteredQuestionSets as questionSet (questionSet.id)}
                     {@const isSelected = selectedSetIds.has(questionSet.id)}
-                    {@const canSelect = questionSet.owner !== null}
+                    {@const canSelect =
+                        questionSet.owner !== null &&
+                        questionSet.owner.email === currentUser.email}
 
                     <div
                         class="h-full transition-all duration-200 {isEditMode &&
@@ -461,12 +465,13 @@
                             isEditMode &&
                             canSelect &&
                             toggleSetSelection(questionSet.id)}
-                        tabindex={isEditMode && canSelect ? 0 : undefined}
-                        role={isEditMode && canSelect ? "button" : undefined}
+                        tabindex="0"
+                        role="button"
                     >
                         <QuestionSetCard
                             {questionSet}
                             isSelected={isEditMode && isSelected}
+                            enableNavigation={!isEditMode}
                         />
                     </div>
                 {/each}
