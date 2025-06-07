@@ -17,27 +17,40 @@
     let selectedTagIds = $state(new Set());
     let isCreatingTag = $state(false);
     let newTagName = $state("");
-    let isLoading = $state(false);
+    let isInitialLoading = $state(false);
+    let isSearching = $state(false);
+    let hasInitializedTags = $state(false);
+    let hasInitialized = $state(false);
 
     $effect(() => {
         if (isOpen) {
-            selectedTagIds = new Set(currentTags.map((tag) => tag.id));
-            searchQuery = "";
-            newTagName = "";
-            isCreatingTag = false;
+            if (!hasInitialized) {
+                selectedTagIds = new Set(currentTags.map((tag) => tag.id));
+                searchQuery = "";
+                newTagName = "";
+                isCreatingTag = false;
+                hasInitializedTags = false;
+                isInitialLoading = true;
+                isSearching = false;
+                hasInitialized = true;
+                loadAvailableTags();
+            }
+        } else {
+            hasInitialized = false;
+        }
+    });
+
+    $effect(() => {
+        if (hasInitialized && searchQuery !== undefined) {
+            isSearching = true;
             loadAvailableTags();
         }
     });
 
     function loadAvailableTags() {
         if (live) {
-            isLoading = true;
             live.pushEvent("load_all_tags", { search_query: searchQuery });
         }
-    }
-
-    function handleSearch() {
-        loadAvailableTags();
     }
 
     function toggleTagSelection(tagId) {
@@ -63,7 +76,6 @@
         const selectedTagsArray = Array.from(selectedTagIds).map(String);
         const currentTagIds = currentTags.map((tag) => tag.id);
 
-        // Find tags to add and remove
         const tagsToAdd = selectedTagsArray.filter(
             (id) => !currentTagIds.includes(parseInt(id)),
         );
@@ -95,16 +107,19 @@
         onClose();
     }
 
-    // Listen for backend updates
     $effect(() => {
         if (live) {
             const handleTagsLoaded = (data) => {
                 availableTags = data.tags || [];
-                isLoading = false;
+                if (!hasInitializedTags) {
+                    hasInitializedTags = true;
+                    isInitialLoading = false;
+                } else {
+                    isSearching = false;
+                }
             };
 
             const handleTagCreated = (data) => {
-                // Add the new tag to available tags and select it
                 if (data.tag) {
                     availableTags = [...availableTags, data.tag];
                     selectedTagIds.add(data.tag.id);
@@ -134,24 +149,29 @@
         <!-- Search and Quick Create -->
         <div class="flex flex-col sm:flex-row gap-3">
             <div class="flex-1 relative">
-                <label
-                    for="search"
-                    class="input relative flex items-center gap-2"
-                >
-                    <SearchIcon class="h-4 w-4 text-base-content/50" />
-                    <input
-                        type="search"
-                        bind:value={searchQuery}
-                        oninput={handleSearch}
-                        placeholder="Search tags..."
-                        class="grow"
-                    />
-                </label>
+                <TextInput
+                    bind:value={searchQuery}
+                    placeholder="Search tags..."
+                    fullWidth={true}
+                    size="md"
+                    variant="bordered"
+                    icon={SearchIcon}
+                    type="search"
+                />
+                {#if isSearching}
+                    <div
+                        class="absolute top-1/2 right-3 transform -translate-y-1/2"
+                    >
+                        <div
+                            class="loading loading-spinner loading-xs text-primary"
+                        ></div>
+                    </div>
+                {/if}
             </div>
 
             <Button
                 variant="outline"
-                size="sm"
+                size="md"
                 onclick={() => (isCreatingTag = !isCreatingTag)}
                 class="gap-2"
             >
@@ -187,7 +207,7 @@
 
         <!-- Tags List -->
         <div class="border border-base-300 rounded-lg max-h-80 overflow-y-auto">
-            {#if isLoading}
+            {#if isInitialLoading}
                 <div class="p-8 text-center">
                     <div
                         class="loading loading-spinner loading-md text-primary"

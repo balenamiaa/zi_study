@@ -10,6 +10,7 @@
     import QuestionsOverview from "../components/questions/QuestionsOverview.svelte";
     import QuestionRenderer from "../components/questions/QuestionRenderer.svelte";
     import TagsManagementModal from "../components/questions/TagsManagementModal.svelte";
+    import TextInput from "../components/TextInput.svelte";
     let { live, questionSet, userQuestionSets, currentUser } = $props();
 
     let searchQuery = $state("");
@@ -339,15 +340,15 @@
             >
                 <!-- Enhanced Search Input -->
                 <div class="flex-1 w-full lg:max-w-lg">
-                    <label for="search" class="input input-lg relative w-full">
-                        <SearchIcon class="h-5 w-5" />
-                        <input
-                            type="search"
-                            bind:value={searchQuery}
-                            placeholder="Search questions..."
-                            class="grow text-base"
-                        />
-                    </label>
+                    <TextInput
+                        bind:value={searchQuery}
+                        placeholder="Search questions..."
+                        fullWidth={true}
+                        size="lg"
+                        variant="bordered"
+                        icon={SearchIcon}
+                        type="search"
+                    />
                 </div>
 
                 <!-- Filters and Results Row -->
@@ -467,7 +468,7 @@
                     </p>
                 </div>
             {:else}
-                {#each filteredQuestions as question, index (question.id)}
+                {#each filteredQuestions as question, index (`${question.id}-${index}`)}
                     {@const userAnswer = questionSet?.answers?.find(
                         (a) => a.question_id === question.id,
                     )}

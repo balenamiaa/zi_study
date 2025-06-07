@@ -14,7 +14,6 @@
     import Modal from "../components/Modal.svelte";
     import Badge from "../components/Badge.svelte";
     import { onMount, onDestroy } from "svelte";
-    import { debounce } from "../utils/debounce.js";
     import BulkAddToSetsModal from "../components/questions/BulkAddToSetsModal.svelte";
 
     let {
@@ -35,7 +34,6 @@
     let showFilters = $state(false);
     let showSettings = $state(false);
     let searchInputEl = $state(null);
-    let isDebouncing = $state(false);
 
     // Filters
     let selectedTypes = $state(new Set());
@@ -96,9 +94,7 @@
     });
 
     // Debounced search
-    const performSearch = debounce(() => {
-        isDebouncing = false;
-
+    const performSearch = () => {
         if (
             !searchQuery.trim() &&
             selectedTypes.size === 0 &&
@@ -118,7 +114,7 @@
         };
 
         live.pushEvent("search", { query: searchQuery, config });
-    }, 300);
+    };
 
     // Watch search inputs
     $effect(() => {
@@ -129,7 +125,6 @@
         caseSensitive; // Track
         sortBy; // Track
 
-        isDebouncing = true;
         performSearch();
     });
 
@@ -275,23 +270,16 @@
 
             <!-- Search Bar -->
             <div class="relative">
-                <label
-                    class="input input-lg input-bordered flex items-center gap-3"
-                >
-                    <SearchIcon class="h-5 w-5 text-base-content/50" />
-                    <input
-                        bind:this={searchInputEl}
-                        bind:value={searchQuery}
-                        type="search"
-                        placeholder="Search questions..."
-                        class="grow text-lg"
-                    />
-                    {#if isDebouncing}
-                        <div
-                            class="loading loading-spinner loading-sm text-primary"
-                        ></div>
-                    {/if}
-                </label>
+                <TextInput
+                    bind:this={searchInputEl}
+                    bind:value={searchQuery}
+                    placeholder="Search questions..."
+                    fullWidth={true}
+                    size="lg"
+                    variant="bordered"
+                    icon={SearchIcon}
+                    type="search"
+                />
 
                 <!-- Filter/Settings Buttons -->
                 <div
@@ -592,7 +580,7 @@
                         : "s"}
                 </div>
 
-                {#each deduplicatedResults as result, index (result.question.id)}
+                {#each deduplicatedResults as result, index (`${result.question.id}-${index}`)}
                     {@const isSelected = isQuestionSelected(result.question.id)}
 
                     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

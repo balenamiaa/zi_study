@@ -19,37 +19,46 @@
     let newSetTitle = $state("");
     let currentPage = $state(1);
     let hasInitializedSelections = $state(false);
-    let isLoading = $state(false);
-    let error = $state(null);
+    let isInitialLoading = $state(false);
+    let isSearching = $state(false);
+    let hasInitialized = $state(false);
 
     $effect(() => {
         if (isOpen && live) {
-            selectedSetIds = [];
-            initialSetIds = [];
-            hasInitializedSelections = false;
-            searchQuery = "";
-            newSetTitle = "";
-            currentPage = 1;
+            if (!hasInitialized) {
+                selectedSetIds = [];
+                initialSetIds = [];
+                hasInitializedSelections = false;
+                searchQuery = "";
+                newSetTitle = "";
+                currentPage = 1;
+                isInitialLoading = true;
+                isSearching = false;
+                hasInitialized = true;
 
+                loadQuestionSets();
+            }
+        } else {
+            hasInitialized = false;
+        }
+    });
+
+    $effect(() => {
+        if (hasInitialized && searchQuery !== undefined) {
+            currentPage = 1;
+            isSearching = true;
             loadQuestionSets();
         }
     });
 
     function loadQuestionSets() {
         if (live) {
-            isLoading = true;
-            error = null;
             live.pushEvent("load_owned_question_sets_for_question", {
                 question_id: String(questionId),
                 page_number: currentPage,
                 search_query: searchQuery,
             });
         }
-    }
-
-    function handleSearch() {
-        currentPage = 1;
-        loadQuestionSets();
     }
 
     function handlePageChange(page) {
@@ -107,7 +116,9 @@
             initialSetIds = [...containingIds];
             selectedSetIds = [...containingIds];
             hasInitializedSelections = true;
-            isLoading = false;
+            isInitialLoading = false;
+        } else if (userQuestionSets?.items && hasInitializedSelections) {
+            isSearching = false;
         }
     });
 
@@ -158,24 +169,29 @@
         <!-- Search and Quick Create -->
         <div class="flex flex-col sm:flex-row gap-3">
             <div class="flex-1 relative">
-                <label
-                    for="search"
-                    class="input relative flex items-center gap-2"
-                >
-                    <SearchIcon class="h-4 w-4 text-base-content/50" />
-                    <input
-                        type="search"
-                        bind:value={searchQuery}
-                        oninput={handleSearch}
-                        placeholder="Search question sets..."
-                        class="grow"
-                    />
-                </label>
+                <TextInput
+                    bind:value={searchQuery}
+                    placeholder="Search question sets..."
+                    fullWidth={true}
+                    size="md"
+                    variant="bordered"
+                    icon={SearchIcon}
+                    type="search"
+                />
+                {#if isSearching}
+                    <div
+                        class="absolute top-1/2 right-3 transform -translate-y-1/2"
+                    >
+                        <div
+                            class="loading loading-spinner loading-xs text-primary"
+                        ></div>
+                    </div>
+                {/if}
             </div>
 
             <Button
                 variant="outline"
-                size="sm"
+                size="md"
                 onclick={() => (isCreatingSet = !isCreatingSet)}
                 class="gap-2"
             >
@@ -217,7 +233,7 @@
 
         <!-- Question Sets List -->
         <div class="border border-base-300 rounded-lg">
-            {#if isLoading || !userQuestionSets}
+            {#if isInitialLoading || !userQuestionSets}
                 <div class="p-8 text-center">
                     <div
                         class="loading loading-spinner loading-md text-primary"

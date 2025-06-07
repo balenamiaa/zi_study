@@ -2169,53 +2169,88 @@ defmodule ZiStudy.QuestionsTest do
       assert Enum.any?(results, &(&1.question.id == q3.id))
     end
 
-    test "search_questions_advanced/2 handles problematic special characters without FTS errors", _context do
+    test "search_questions_advanced/2 handles problematic special characters without FTS errors",
+         _context do
       # Test various special characters that previously caused FTS5 syntax errors
       special_chars_tests = [
-        "*",           # asterisk - should trigger search all
-        "\\",          # backslash
-        "/",           # forward slash
-        "+",           # plus sign
-        "2+2",         # expression with plus
-        "H2O/water",   # mixed alphanumeric with slash
-        "test*query",  # asterisk within term
-        "\"quoted\"",  # quoted text
-        "(parentheses)", # parentheses
-        "[brackets]",  # square brackets
-        "a & b",       # ampersand
-        "a | b",       # pipe
-        "question?",   # question mark
-        "test!",       # exclamation mark
-        "a^b",         # caret
-        "a$b",         # dollar sign
-        "a~b",         # tilde
-        "{braces}",    # curly braces
-        ":",           # colon
-        ";",           # semicolon
+        # asterisk - should trigger search all
+        "*",
+        # backslash
+        "\\",
+        # forward slash
+        "/",
+        # plus sign
+        "+",
+        # expression with plus
+        "2+2",
+        # mixed alphanumeric with slash
+        "H2O/water",
+        # asterisk within term
+        "test*query",
+        # quoted text
+        "\"quoted\"",
+        # parentheses
+        "(parentheses)",
+        # square brackets
+        "[brackets]",
+        # ampersand
+        "a & b",
+        # pipe
+        "a | b",
+        # question mark
+        "question?",
+        # exclamation mark
+        "test!",
+        # caret
+        "a^b",
+        # dollar sign
+        "a$b",
+        # tilde
+        "a~b",
+        # curly braces
+        "{braces}",
+        # colon
+        ":",
+        # semicolon
+        ";"
       ]
 
-             # Each of these should not cause an Exqlite.Error with FTS5 syntax
-       Enum.each(special_chars_tests, fn char ->
-         assert {results, _cursor} = Questions.search_questions_advanced(char, limit: 10)
-         # Results can be empty, but no exception should be raised
-         assert is_list(results)
-       end)
-     end
+      # Each of these should not cause an Exqlite.Error with FTS5 syntax
+      Enum.each(special_chars_tests, fn char ->
+        assert {results, _cursor} = Questions.search_questions_advanced(char, limit: 10)
+        # Results can be empty, but no exception should be raised
+        assert is_list(results)
+      end)
+    end
 
-     test "search_questions_advanced/2 handles search scope correctly without FTS errors", %{q3: q3} do
-       # Test searching only in question_text scope - should find "primordial"
-       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:question_text], limit: 10)
-       assert Enum.any?(results, &(&1.question.id == q3.id))
+    test "search_questions_advanced/2 handles search scope correctly without FTS errors", %{
+      q3: q3
+    } do
+      # Test searching only in question_text scope - should find "primordial"
+      {results, _} =
+        Questions.search_questions_advanced("primordial",
+          search_scope: [:question_text],
+          limit: 10
+        )
 
-       # Test searching in non-existent scope for this question - should find nothing
-       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:options], limit: 10)
-       refute Enum.any?(results, &(&1.question.id == q3.id))
+      assert Enum.any?(results, &(&1.question.id == q3.id))
 
-       # Test multiple scope search - should work without OR syntax errors
-       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:question_text, :options], limit: 10)
-       assert Enum.any?(results, &(&1.question.id == q3.id))
-     end
-   end
+      # Test searching in non-existent scope for this question - should find nothing
+      {results, _} =
+        Questions.search_questions_advanced("primordial", search_scope: [:options], limit: 10)
+
+      refute Enum.any?(results, &(&1.question.id == q3.id))
+
+      # Test multiple scope search - should work without OR syntax errors
+      {results, _} =
+        Questions.search_questions_advanced("primordial",
+          search_scope: [:question_text, :options],
+          limit: 10
+        )
+
+      assert Enum.any?(results, &(&1.question.id == q3.id))
+    end
+  end
 
   describe "QuestionHandlers DTO helpers" do
     alias ZiStudyWeb.Live.QuestionHandlers

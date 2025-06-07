@@ -311,7 +311,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
     message =
       cond do
         failed_sets == 0 ->
-          "Successfully added #{length(question_ids)} questions to #{successful_sets} set(s)"
+          "Successfully added #{length(question_ids)} question(s) to #{successful_sets} set(s)"
 
         successful_sets > 0 ->
           "Added to #{successful_sets} set(s), failed for #{failed_sets} set(s)"

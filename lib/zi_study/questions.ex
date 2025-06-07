@@ -133,21 +133,47 @@ defmodule ZiStudy.Questions do
 
     max_position = Repo.one(max_position_query) || 0
 
-    Repo.transaction(fn ->
-      Enum.with_index(question_data_for_assoc, fn %{id: q_id, position: pos}, index ->
-        actual_position = if pos, do: pos, else: max_position + index + 1
+    # Get existing question IDs in this set to prevent duplicates
+    existing_question_ids_query =
+      from(qsj in "question_set_questions",
+        where: qsj.question_set_id == ^question_set.id,
+        select: qsj.question_id
+      )
 
-        Repo.insert_all("question_set_questions", [
-          %{
-            question_set_id: question_set.id,
-            question_id: q_id,
-            position: actual_position
-          }
-        ])
+    existing_question_ids = MapSet.new(Repo.all(existing_question_ids_query))
+
+    # Filter out questions that are already in the set
+    new_questions =
+      question_data_for_assoc
+      |> Enum.reject(fn %{id: q_id} -> MapSet.member?(existing_question_ids, q_id) end)
+
+    if Enum.empty?(new_questions) do
+      # No new questions to add - all were duplicates
+      {:ok, Repo.preload(question_set, :questions, force: true), %{skipped_duplicates: length(question_data_for_assoc)}}
+    else
+      Repo.transaction(fn ->
+        Enum.with_index(new_questions, fn %{id: q_id, position: pos}, index ->
+          actual_position = if pos, do: pos, else: max_position + index + 1
+
+          Repo.insert_all("question_set_questions", [
+            %{
+              question_set_id: question_set.id,
+              question_id: q_id,
+              position: actual_position
+            }
+          ])
+        end)
+
+        updated_set = Repo.preload(question_set, :questions, force: true)
+        skipped_count = length(question_data_for_assoc) - length(new_questions)
+
+        if skipped_count > 0 do
+          {:ok, updated_set, %{skipped_duplicates: skipped_count}}
+        else
+          {:ok, updated_set}
+        end
       end)
-
-      {:ok, Repo.preload(question_set, :questions, force: true)}
-    end)
+    end
   end
 
   @doc """
@@ -223,6 +249,7 @@ defmodule ZiStudy.Questions do
     else
       case add_questions_to_set_impl(question_set, question_data_for_assoc, []) do
         {:ok, updated_set} -> {:ok, updated_set}
+        {:ok, updated_set, info} -> {:ok, updated_set, info}
         {:error, reason} -> {:error, reason}
       end
     end
@@ -1371,17 +1398,29 @@ defmodule ZiStudy.Questions do
     offset = (page_number - 1) * page_size
     search_pattern = "%#{String.downcase(search_query)}%"
 
+    # Subquery to count questions in each set
+    question_count_subquery =
+      from qsj in "question_set_questions",
+        group_by: qsj.question_set_id,
+        select: %{question_set_id: qsj.question_set_id, question_count: count(qsj.question_id)}
+
     base_query =
       from qs in QuestionSet,
         left_join: u in User,
         on: qs.owner_id == u.id,
+        left_join: qc in subquery(question_count_subquery),
+        on: qs.id == qc.question_set_id,
         where: qs.owner_id == ^user_id or not qs.is_private,
-        preload: [:tags, :owner]
+        preload: [:tags, :owner],
+        select: %{
+          question_set: qs,
+          question_count: coalesce(qc.question_count, 0)
+        }
 
     # Apply search filter if provided
     filtered_query =
       if search_query != "" do
-        from qs in base_query,
+        from [qs, u, qc] in base_query,
           where:
             fragment("LOWER(?) LIKE ?", qs.title, ^search_pattern) or
               fragment("LOWER(?) LIKE ?", qs.description, ^search_pattern)
@@ -1394,15 +1433,23 @@ defmodule ZiStudy.Questions do
       filtered_query
       |> exclude(:preload)
       |> exclude(:order_by)
-      |> Repo.aggregate(:count, :id)
+      |> exclude(:select)
+      |> select([qs, u, qc], count(qs.id))
+      |> Repo.one()
 
     # Get paginated results
-    question_sets =
+    results =
       filtered_query
-      |> order_by([qs], desc: qs.updated_at)
+      |> order_by([qs, u, qc], desc: qs.updated_at)
       |> limit(^page_size)
       |> offset(^offset)
       |> Repo.all()
+
+    # Transform results to include question count in each question set
+    question_sets =
+      Enum.map(results, fn %{question_set: qs, question_count: count} ->
+        Map.put(qs, :num_questions, count)
+      end)
 
     {question_sets, total_count}
   end
