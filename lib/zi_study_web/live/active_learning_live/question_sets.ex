@@ -2,6 +2,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
   use ZiStudyWeb, :live_view
 
   alias ZiStudy.Questions
+  alias ZiStudyWeb.Live.QuestionHandlers
 
   def render(assigns) do
     ~H"""
@@ -28,7 +29,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
      socket
      |> assign(:question_sets, get_question_sets(current_user.id))
      |> assign(:available_tags, get_available_tags())
-     |> assign(:current_user, owner_to_dto(current_user))}
+     |> assign(:current_user, QuestionHandlers.owner_to_dto(current_user))}
   end
 
   defp get_question_sets(user_id) do
@@ -42,8 +43,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
         title: question_set.title,
         description: question_set.description,
         is_private: question_set.is_private,
-        owner: owner_to_dto(question_set.owner),
-        tags: Enum.map(question_set.tags, &get_tag_dto/1),
+        owner: QuestionHandlers.owner_to_dto(question_set.owner),
+        tags: Enum.map(question_set.tags, &QuestionHandlers.get_tag_dto/1),
         stats: Questions.get_user_question_set_stats(user_id, question_set.id),
         num_questions: length(question_set.questions),
         inserted_at: question_set.inserted_at,
@@ -53,16 +54,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
   end
 
   defp get_available_tags do
-    Questions.list_tags()
-    |> Enum.map(&get_tag_dto/1)
+    QuestionHandlers.get_available_tags()
   end
-
-  defp get_tag_dto(tag) do
-    %{id: tag.id, name: tag.name}
-  end
-
-  defp owner_to_dto(owner) when is_map(owner), do: %{email: owner.email}
-  defp owner_to_dto(nil), do: nil
 
   def handle_event("create_question_set", params, socket) do
     %{"title" => title, "description" => description, "is_private" => is_private} = params

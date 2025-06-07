@@ -6,6 +6,7 @@ defmodule ZiStudy.QuestionsTest do
   alias ZiStudy.Questions
   alias ZiStudy.Questions.{Question, QuestionSet, Tag, Answer}
   alias ZiStudy.QuestionsOps.Processed
+  alias ZiStudyWeb.Live.QuestionHandlers
 
   describe "question_sets" do
     test "list_question_sets/0 returns all public question sets" do
@@ -1990,6 +1991,190 @@ defmodule ZiStudy.QuestionsTest do
       assert question_set.tags != %Ecto.Association.NotLoaded{}
       assert question_set.owner != %Ecto.Association.NotLoaded{}
       assert question_set.owner.email != nil
+    end
+  end
+
+  describe "advanced FTS5 search and bulk operations" do
+    alias ZiStudy.Questions.QuestionSet
+    alias ZiStudyWeb.Live.QuestionHandlers
+
+    setup do
+      user = user_fixture()
+      other_user = user_fixture()
+      tag1 = tag_fixture(%{name: "math"})
+      tag2 = tag_fixture(%{name: "science"})
+      set1 = question_set_fixture(user, %{title: "Math Set", is_private: false})
+      set2 = question_set_fixture(user, %{title: "Science Set", is_private: false})
+      set3 = question_set_fixture(other_user, %{title: "Other Set", is_private: false})
+      Questions.add_tags_to_question_set(set1, [tag1.id])
+      Questions.add_tags_to_question_set(set2, [tag2.id])
+
+      q1 =
+        question_fixture(:mcq_single, %{
+          "question_text" => "What is 2 + 2?",
+          "question_type" => "mcq_single",
+          "difficulty" => "easy"
+        })
+
+      q2 =
+        question_fixture(:mcq_single, %{
+          "question_text" => "What is H2O?",
+          "question_type" => "mcq_single",
+          "difficulty" => "medium"
+        })
+
+      Questions.add_questions_to_set(set1, [q1])
+      Questions.add_questions_to_set(set2, [q2])
+
+      %{
+        user: user,
+        other_user: other_user,
+        set1: set1,
+        set2: set2,
+        set3: set3,
+        q1: q1,
+        q2: q2,
+        tag1: tag1,
+        tag2: tag2
+      }
+    end
+
+    test "search_questions_advanced/2 returns relevant results and highlights", %{q1: q1, q2: q2} do
+      {results, next_cursor} = Questions.search_questions_advanced("2 + 2", limit: 10)
+      assert Enum.any?(results, fn r -> r.question.id == q1.id end)
+      assert is_nil(next_cursor) or is_integer(next_cursor)
+      assert Enum.all?(results, fn r -> is_map(r.highlights) end)
+    end
+
+    test "search_questions_advanced/2 supports tag and difficulty filters", %{
+      tag1: tag1,
+      tag2: tag2,
+      q1: q1,
+      q2: q2
+    } do
+      {results, _} = Questions.search_questions_advanced("", tag_ids: [tag1.id], limit: 10)
+      assert Enum.any?(results, fn r -> r.question.id == q1.id end)
+      refute Enum.any?(results, fn r -> r.question.id == q2.id end)
+      {results2, _} = Questions.search_questions_advanced("", difficulties: ["medium"], limit: 10)
+      assert Enum.any?(results2, fn r -> r.question.id == q2.id end)
+    end
+
+    test "bulk_add_questions_to_set/3 only allows owner to add", %{
+      user: user,
+      other_user: other_user,
+      set1: set1,
+      q2: q2
+    } do
+      # Owner can add
+      assert {:ok, _} = Questions.bulk_add_questions_to_set(user.id, [q2.id], set1.id)
+      # Non-owner cannot add
+      assert {:error, :unauthorized} =
+               Questions.bulk_add_questions_to_set(other_user.id, [q2.id], set1.id)
+    end
+
+    test "modify_question_sets/3 adds and removes correctly", %{
+      user: user,
+      set1: set1,
+      set2: set2,
+      q1: q1
+    } do
+      # Remove from set1, add to set2
+      mods = [
+        %{"set_id" => Integer.to_string(set1.id), "should_contain" => false},
+        %{"set_id" => Integer.to_string(set2.id), "should_contain" => true}
+      ]
+
+      {:ok, result} =
+        Questions.modify_question_sets(
+          user.id,
+          q1.id,
+          Enum.map(mods, fn %{"set_id" => id, "should_contain" => sc} ->
+            {String.to_integer(id), sc}
+          end)
+        )
+
+      assert is_integer(result.added_to_sets)
+      assert is_integer(result.removed_from_sets)
+    end
+
+    test "quick_create_question_set/2 creates a private set", %{user: user} do
+      {:ok, set} = Questions.quick_create_question_set(user, "Quick Set")
+      assert set.title == "Quick Set"
+      assert set.is_private == true
+      assert set.owner_id == user.id
+    end
+  end
+
+  describe "QuestionHandlers DTO helpers" do
+    alias ZiStudyWeb.Live.QuestionHandlers
+
+    test "owner_to_dto/1 returns correct map" do
+      assert QuestionHandlers.owner_to_dto(%{email: "a@b.com"}) == %{email: "a@b.com"}
+      assert QuestionHandlers.owner_to_dto(nil) == nil
+    end
+
+    test "get_tag_dto/1 returns correct map" do
+      assert QuestionHandlers.get_tag_dto(%{id: 1, name: "foo"}) == %{id: 1, name: "foo"}
+    end
+
+    test "get_question_dto/1 returns correct map" do
+      now = DateTime.utc_now()
+
+      q = %{
+        id: 1,
+        data: %{},
+        difficulty: "easy",
+        type: "mcq_single",
+        inserted_at: now,
+        updated_at: now
+      }
+
+      dto = QuestionHandlers.get_question_dto(q)
+      assert dto.id == 1
+      assert dto.difficulty == "easy"
+      assert dto.type == "mcq_single"
+      assert dto.inserted_at == now
+    end
+
+    test "question_set_to_accessible_dto/2 returns correct map" do
+      now = DateTime.utc_now()
+
+      set = %{
+        id: 1,
+        title: "T",
+        description: "D",
+        is_private: false,
+        owner_id: 2,
+        owner: %{email: "a@b.com"},
+        tags: [%{id: 1, name: "foo"}],
+        inserted_at: now,
+        updated_at: now
+      }
+
+      dto = QuestionHandlers.question_set_to_accessible_dto(set, 2)
+      assert dto.is_owned == true
+      assert dto.owner == %{email: "a@b.com"}
+      assert Enum.at(dto.tags, 0).name == "foo"
+    end
+
+    test "question_set_to_dto/1 returns correct map" do
+      now = DateTime.utc_now()
+
+      set = %{
+        id: 1,
+        title: "T",
+        description: "D",
+        is_private: false,
+        owner: %{email: "a@b.com"},
+        tags: [%{id: 1, name: "foo"}],
+        questions: [%{id: 1}],
+        inserted_at: now,
+        updated_at: now
+      }
+
+      dto = QuestionHandlers.question_set_to_dto(set)
+      assert dto.num_questions == 1
+      assert dto.owner == %{email: "a@b.com"}
     end
   end
 end

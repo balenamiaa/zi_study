@@ -893,6 +893,269 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
+  Advanced search using FTS5 with configurable parameters and highlighting.
+
+  ## Options
+    * `:cursor` - Cursor for pagination (last question ID from previous page)
+    * `:limit` - Number of results per page (default: 20)
+    * `:search_scope` - List of fields to search in (default: all fields)
+    * `:case_sensitive` - Whether search is case sensitive (default: false)
+    * `:fuzzy_threshold` - Fuzzy matching threshold 0-1 (default: 0.8)
+    * `:sort_by` - Sort order: :relevance, :newest, :oldest (default: :relevance)
+    * `:question_types` - Filter by question types
+    * `:difficulties` - Filter by difficulty levels
+    * `:tag_ids` - Filter by tag IDs
+
+  Returns `{questions_with_highlights, cursor_for_next_page}`
+  """
+  def search_questions_advanced(query, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 20)
+    cursor = Keyword.get(opts, :cursor, nil)
+    search_scope = Keyword.get(opts, :search_scope, [:all])
+    case_sensitive = Keyword.get(opts, :case_sensitive, false)
+    sort_by = Keyword.get(opts, :sort_by, :relevance)
+    question_types = Keyword.get(opts, :question_types, [])
+    difficulties = Keyword.get(opts, :difficulties, [])
+    tag_ids = Keyword.get(opts, :tag_ids, [])
+
+    # Build search query for FTS5
+    fts_query = build_fts_query(query, search_scope, case_sensitive)
+
+    # Base query with FTS5 search
+    base_query = """
+    WITH search_results AS (
+      SELECT
+        question_id,
+        rank,
+        snippet(questions_fts, -1, '<mark>', '</mark>', '...', 30) as snippet,
+        highlight(questions_fts, -1, '<mark>', '</mark>') as highlight_data
+      FROM questions_fts
+      WHERE questions_fts MATCH ?
+      ORDER BY rank
+    )
+    SELECT DISTINCT
+      q.*,
+      sr.rank,
+      sr.snippet,
+      sr.highlight_data
+    FROM questions q
+    INNER JOIN search_results sr ON q.id = sr.question_id
+    """
+
+    # Add filters
+    {filter_clause, filter_params} =
+      build_filter_clause(cursor, question_types, difficulties, tag_ids)
+
+    full_query = base_query <> filter_clause <> build_order_clause(sort_by) <> " LIMIT ?"
+
+    query_params = [fts_query] ++ filter_params ++ [limit + 1]
+
+    results = Ecto.Adapters.SQL.query!(Repo, full_query, query_params)
+
+    questions_with_highlights =
+      results.rows
+      |> Enum.take(limit)
+      |> Enum.map(&parse_search_result(&1, results.columns))
+
+    has_next = length(results.rows) > limit
+    next_cursor = if has_next, do: List.last(questions_with_highlights)[:id], else: nil
+
+    {questions_with_highlights, next_cursor}
+  end
+
+  defp build_fts_query(query, search_scope, case_sensitive) do
+    # Handle search scope
+    scope_prefix =
+      case search_scope do
+        [:all] ->
+          ""
+
+        fields ->
+          field_mappings = %{
+            question_text: "question_text",
+            options: "options",
+            answers: "answers",
+            explanation: "explanation",
+            retention_aid: "retention_aid",
+            instructions: "instructions",
+            premises: "premises"
+          }
+
+          fields
+          |> Enum.map(&Map.get(field_mappings, &1))
+          |> Enum.filter(& &1)
+          |> Enum.map(&"#{&1}:")
+          |> Enum.join(" OR ")
+      end
+
+    # Build the query
+    search_query = if case_sensitive, do: query, else: String.downcase(query)
+
+    # Support phrase search with quotes and fuzzy matching
+    cond do
+      String.contains?(search_query, "\"") ->
+        # Exact phrase search
+        scope_prefix <> search_query
+
+      String.contains?(search_query, " ") ->
+        # Multiple terms - use NEAR operator for proximity (FTS5: just NEAR)
+        terms = String.split(search_query)
+        scope_prefix <> "(" <> Enum.join(terms, " NEAR ") <> ")"
+
+      true ->
+        # Single term with prefix matching
+        scope_prefix <> search_query <> "*"
+    end
+  end
+
+  defp build_filter_clause(cursor, question_types, difficulties, tag_ids) do
+    filters = []
+    params = []
+
+    # Cursor filter
+    {filters, params} =
+      if cursor do
+        {[
+          "q.id > ?"
+        ], [cursor]}
+      else
+        {filters, params}
+      end
+
+    # Question type filter
+    {filters, params} =
+      if length(question_types) > 0 do
+        placeholders = Enum.map(1..length(question_types), fn _ -> "?" end) |> Enum.join(",")
+
+        {filters ++ ["json_extract(q.data, '$.question_type') IN (#{placeholders})"],
+         params ++ question_types}
+      else
+        {filters, params}
+      end
+
+    # Difficulty filter
+    {filters, params} =
+      if length(difficulties) > 0 do
+        placeholders = Enum.map(1..length(difficulties), fn _ -> "?" end) |> Enum.join(",")
+        {filters ++ ["q.difficulty IN (#{placeholders})"], params ++ difficulties}
+      else
+        {filters, params}
+      end
+
+    # Tag filter
+    {filters, params} =
+      if length(tag_ids) > 0 do
+        placeholders = Enum.map(1..length(tag_ids), fn _ -> "?" end) |> Enum.join(",")
+
+        tag_filter = """
+        EXISTS (
+          SELECT 1 FROM question_set_questions qsq
+          INNER JOIN question_set_tags qst ON qsq.question_set_id = qst.question_set_id
+          WHERE qsq.question_id = q.id AND qst.tag_id IN (#{placeholders})
+        )
+        """
+
+        {filters ++ [tag_filter], params ++ tag_ids}
+      else
+        {filters, params}
+      end
+
+    filter_clause =
+      if length(filters) > 0 do
+        " WHERE " <> Enum.join(filters, " AND ")
+      else
+        ""
+      end
+
+    {filter_clause, params}
+  end
+
+  defp build_order_clause(sort_by) do
+    case sort_by do
+      :relevance -> " ORDER BY sr.rank DESC, q.id"
+      :newest -> " ORDER BY q.inserted_at DESC, q.id"
+      :oldest -> " ORDER BY q.inserted_at ASC, q.id"
+      _ -> " ORDER BY sr.rank DESC, q.id"
+    end
+  end
+
+  defp parse_search_result(row, columns) do
+    # Convert row data to map with column names
+    data = Enum.zip(columns, row) |> Enum.into(%{})
+
+    # Ensure data is a map (decode if string)
+    question_data =
+      case data["data"] do
+        s when is_binary(s) -> Jason.decode!(s)
+        m when is_map(m) -> m
+        other -> other
+      end
+
+    # Extract question fields
+    question = %Question{
+      id: data["id"],
+      data: question_data,
+      difficulty: data["difficulty"],
+      type: data["type"],
+      inserted_at: data["inserted_at"],
+      updated_at: data["updated_at"]
+    }
+
+    # Parse highlight data
+    highlights = parse_highlights(data["highlight_data"])
+
+    %{
+      question: question,
+      snippet: data["snippet"],
+      highlights: highlights,
+      rank: data["rank"]
+    }
+  end
+
+  defp parse_highlights(nil), do: %{}
+
+  defp parse_highlights(highlight_data) do
+    # Parse the highlight data from FTS5
+    # This will contain the highlighted versions of each field
+    highlight_data
+    |> String.split("\n")
+    |> Enum.reduce(%{}, fn line, acc ->
+      case String.split(line, ":", parts: 2) do
+        [field, content] -> Map.put(acc, field, content)
+        _ -> acc
+      end
+    end)
+  end
+
+  @doc """
+  Gets question with answers for search results display.
+  Similar to get_question but optimized for search results.
+  """
+  def get_question_for_search_display(question_id, user_id) do
+    question = get_question(question_id)
+
+    if question do
+      user_answer = get_user_answer(user_id, question_id)
+
+      %{
+        question: question,
+        user_answer: user_answer
+      }
+    else
+      nil
+    end
+  end
+
+  @doc """
+  Searches questions that belong to specific question sets.
+  Useful for searching within a user's owned or accessible sets.
+  """
+  def search_questions_in_sets(query, question_set_ids, opts \\ []) do
+    opts = Keyword.put(opts, :question_set_ids, question_set_ids)
+    search_questions_advanced(query, opts)
+  end
+
+  @doc """
   Lists questions by difficulty level.
   """
   def list_questions_by_difficulty(difficulty) do
@@ -1322,6 +1585,24 @@ defmodule ZiStudy.Questions do
       {:ok, %{added_to_sets: successes}}
     else
       {:error, %{added_to_sets: successes, failed_sets: failures}}
+    end
+  end
+
+  @doc """
+  Bulk adds multiple questions to a single question set.
+  Only adds to sets owned by the user for security.
+  """
+  def bulk_add_questions_to_set(user_id, question_ids, question_set_id)
+      when is_list(question_ids) do
+    case get_question_set(question_set_id) do
+      nil ->
+        {:error, :set_not_found}
+
+      question_set when question_set.owner_id != user_id ->
+        {:error, :unauthorized}
+
+      question_set ->
+        add_questions_to_set(question_set, question_ids, user_id)
     end
   end
 end

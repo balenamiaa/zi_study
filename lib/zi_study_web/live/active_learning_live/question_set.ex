@@ -2,6 +2,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
   use ZiStudyWeb, :live_view
 
   alias ZiStudy.Questions
+  alias ZiStudyWeb.Live.QuestionHandlers
 
   @default_page_size 15
 
@@ -29,7 +30,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     {:ok,
      socket
      |> assign(:question_set, get_question_set(params["id"], current_user.id))
-     |> assign(:current_user_dto, owner_to_dto(current_user))
+     |> assign(:current_user_dto, QuestionHandlers.owner_to_dto(current_user))
      |> assign(:user_question_sets, nil)}
   end
 
@@ -43,66 +44,17 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
       title: question_set_db.title,
       description: question_set_db.description,
       is_private: question_set_db.is_private,
-      owner: owner_to_dto(question_set_db.owner),
-      tags: Enum.map(question_set_db.tags, &get_tag_dto/1),
-      questions: Enum.map(question_set_db.questions, &get_question_dto/1),
+      owner: QuestionHandlers.owner_to_dto(question_set_db.owner),
+      tags: Enum.map(question_set_db.tags, &QuestionHandlers.get_tag_dto/1),
+      questions: Enum.map(question_set_db.questions, &QuestionHandlers.get_question_dto/1),
       answers:
         Enum.map(
           Questions.get_user_answers_for_questions(user_id, question_set_db.questions),
-          &answer_to_dto/1
+          &QuestionHandlers.answer_to_dto/1
         ),
       stats: Questions.get_user_question_set_stats(user_id, question_set_db.id),
       inserted_at: question_set_db.inserted_at,
       updated_at: question_set_db.updated_at
-    }
-  end
-
-  defp question_set_to_accessible_dto(question_set, user_id) do
-    %{
-      id: question_set.id,
-      title: question_set.title,
-      description: question_set.description,
-      is_private: question_set.is_private,
-      is_owned: question_set.owner_id == user_id,
-      owner: owner_to_dto(question_set.owner),
-      tags: Enum.map(question_set.tags, fn tag -> %{id: tag.id, name: tag.name} end),
-      inserted_at: question_set.inserted_at,
-      updated_at: question_set.updated_at
-    }
-  end
-
-  def get_tag_dto(tag) do
-    %{
-      id: tag.id,
-      name: tag.name
-    }
-  end
-
-  def get_question_dto(question) do
-    %{
-      id: question.id,
-      data: question.data,
-      inserted_at: question.inserted_at,
-      updated_at: question.updated_at
-    }
-  end
-
-  def owner_to_dto(owner) when is_map(owner) do
-    %{
-      email: owner.email
-    }
-  end
-
-  def owner_to_dto(owner) when is_nil(owner) do
-    nil
-  end
-
-  def answer_to_dto(answer) do
-    %{
-      id: answer.id,
-      question_id: answer.question_id,
-      data: answer.data,
-      is_correct: answer.is_correct
     }
   end
 
@@ -135,7 +87,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
 
     items =
       Enum.map(question_sets_with_info, fn %{question_set: qs, contains_question: contains} ->
-        qs_dto = question_set_to_accessible_dto(qs, current_user.id)
+        qs_dto = QuestionHandlers.question_set_to_accessible_dto(qs, current_user.id)
         Map.put(qs_dto, :contains_question, contains)
       end)
 
@@ -306,26 +258,11 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     case Questions.modify_question_sets(current_user.id, question_id_int, set_modifications) do
       {:ok,
        %{
-         added_to_sets: added,
-         removed_from_sets: removed,
+         added_to_sets: _added,
+         removed_from_sets: _removed,
          total_modified: total,
          modified_sets: modified_sets
        }} ->
-        message =
-          cond do
-            added > 0 and removed > 0 ->
-              "Added to #{added} set(s), removed from #{removed} set(s)"
-
-            added > 0 ->
-              "Added to #{added} set(s)"
-
-            removed > 0 ->
-              "Removed from #{removed} set(s)"
-
-            true ->
-              "No changes made"
-          end
-
         current_question_set_id = socket.assigns.question_set.id
 
         current_set_modified =
@@ -411,7 +348,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
         tags
       end
 
-    tag_dtos = Enum.map(filtered_tags, &get_tag_dto/1)
+    tag_dtos = Enum.map(filtered_tags, &QuestionHandlers.get_tag_dto/1)
 
     {:noreply, push_event(socket, "tags_loaded", %{tags: tag_dtos})}
   end
@@ -419,7 +356,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
   def handle_event("create_tag", %{"name" => name}, socket) do
     case Questions.create_tag(%{name: name}) do
       {:ok, tag} ->
-        {:noreply, push_event(socket, "tag_created", %{tag: get_tag_dto(tag)})}
+        {:noreply, push_event(socket, "tag_created", %{tag: QuestionHandlers.get_tag_dto(tag)})}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to create tag")}
