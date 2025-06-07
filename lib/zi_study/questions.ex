@@ -918,49 +918,119 @@ defmodule ZiStudy.Questions do
     difficulties = Keyword.get(opts, :difficulties, [])
     tag_ids = Keyword.get(opts, :tag_ids, [])
 
-    # Build search query for FTS5
-    fts_query = build_fts_query(query, search_scope, case_sensitive)
+    # Special case for "*" - search all documents without using FTS
+    if query == "*" do
+      search_all_questions(cursor, limit, sort_by, question_types, difficulties, tag_ids)
+    else
+      # Regular FTS5 search
+      # Build search query for FTS5
+      fts_query = build_fts_query(query, search_scope, case_sensitive)
 
-    # Base query with FTS5 search
+      # Base query with FTS5 search
+      base_query = """
+      WITH search_results AS (
+        SELECT
+          question_id,
+          rank,
+          snippet(questions_fts, -1, '<mark>', '</mark>', '...', 30) as snippet,
+          highlight(questions_fts, -1, '<mark>', '</mark>') as highlight_data
+        FROM questions_fts
+        WHERE questions_fts MATCH ?
+        ORDER BY rank
+      )
+      SELECT DISTINCT
+        q.*,
+        sr.rank,
+        sr.snippet,
+        sr.highlight_data
+      FROM questions q
+      INNER JOIN search_results sr ON q.id = sr.question_id
+      """
+
+      # Add filters
+      {filter_clause, filter_params} =
+        build_filter_clause(cursor, question_types, difficulties, tag_ids)
+
+      full_query = base_query <> filter_clause <> build_order_clause(sort_by) <> " LIMIT ?"
+
+      query_params = [fts_query] ++ filter_params ++ [limit + 1]
+
+      results = Ecto.Adapters.SQL.query!(Repo, full_query, query_params)
+
+      questions_with_highlights =
+        results.rows
+        |> Enum.take(limit)
+        |> Enum.map(&parse_search_result(&1, results.columns))
+
+      has_next = length(results.rows) > limit
+      next_cursor = if has_next, do: List.last(questions_with_highlights).question.id, else: nil
+
+      {questions_with_highlights, next_cursor}
+    end
+  end
+
+  # Special version that queries directly from questions table without FTS
+  defp search_all_questions(cursor, limit, sort_by, question_types, difficulties, tag_ids) do
+    # Start with a basic query
     base_query = """
-    WITH search_results AS (
-      SELECT
-        question_id,
-        rank,
-        snippet(questions_fts, -1, '<mark>', '</mark>', '...', 30) as snippet,
-        highlight(questions_fts, -1, '<mark>', '</mark>') as highlight_data
-      FROM questions_fts
-      WHERE questions_fts MATCH ?
-      ORDER BY rank
-    )
-    SELECT DISTINCT
-      q.*,
-      sr.rank,
-      sr.snippet,
-      sr.highlight_data
+    SELECT q.*
     FROM questions q
-    INNER JOIN search_results sr ON q.id = sr.question_id
     """
 
     # Add filters
     {filter_clause, filter_params} =
       build_filter_clause(cursor, question_types, difficulties, tag_ids)
 
-    full_query = base_query <> filter_clause <> build_order_clause(sort_by) <> " LIMIT ?"
+    # Add order clause based on sort_by
+    order_clause =
+      case sort_by do
+        :newest -> " ORDER BY q.inserted_at DESC, q.id"
+        :oldest -> " ORDER BY q.inserted_at ASC, q.id"
+        _ -> " ORDER BY q.id DESC" # Default ordering when not using rank
+      end
 
-    query_params = [fts_query] ++ filter_params ++ [limit + 1]
+    full_query = base_query <> filter_clause <> order_clause <> " LIMIT ?"
+    query_params = filter_params ++ [limit + 1]
 
     results = Ecto.Adapters.SQL.query!(Repo, full_query, query_params)
 
-    questions_with_highlights =
+    questions =
       results.rows
       |> Enum.take(limit)
-      |> Enum.map(&parse_search_result(&1, results.columns))
+      |> Enum.map(fn row ->
+        data = Enum.zip(results.columns, row) |> Enum.into(%{})
+
+        # Ensure data is a map (decode if string)
+        question_data =
+          case data["data"] do
+            s when is_binary(s) -> Jason.decode!(s)
+            m when is_map(m) -> m
+            other -> other
+          end
+
+        # Build question struct
+        question = %Question{
+          id: data["id"],
+          data: question_data,
+          difficulty: data["difficulty"],
+          type: data["type"],
+          inserted_at: data["inserted_at"],
+          updated_at: data["updated_at"]
+        }
+
+        # Create a similar structure to FTS results but without highlight/snippet
+        %{
+          question: question,
+          snippet: nil,
+          highlights: %{},
+          rank: 0
+        }
+      end)
 
     has_next = length(results.rows) > limit
-    next_cursor = if has_next, do: List.last(questions_with_highlights)[:id], else: nil
+    next_cursor = if has_next and length(questions) > 0, do: List.last(questions).question.id, else: nil
 
-    {questions_with_highlights, next_cursor}
+    {questions, next_cursor}
   end
 
   defp build_fts_query(query, search_scope, case_sensitive) do
@@ -988,23 +1058,44 @@ defmodule ZiStudy.Questions do
           |> Enum.join(" OR ")
       end
 
-    # Build the query
-    search_query = if case_sensitive, do: query, else: String.downcase(query)
+    # Special case: "*" means search all documents (empty query)
+    if query == "*" do
+      # For SQLite FTS5, an empty string will match all documents
+      ""
+    else
+      # Build the query
+      search_query = if case_sensitive, do: query, else: String.downcase(query)
 
-    # Support phrase search with quotes and fuzzy matching
-    cond do
-      String.contains?(search_query, "\"") ->
-        # Exact phrase search
-        scope_prefix <> search_query
+      # Escape special characters that have meaning in FTS5 syntax
+      # * is a wildcard, - is NOT, " for phrases, etc.
+      escaped_query =
+        search_query
+        |> String.replace(~r/([*"\\^-])/, "\\\\\\1")
 
-      String.contains?(search_query, " ") ->
-        # Multiple terms - use NEAR operator for proximity (FTS5: just NEAR)
-        terms = String.split(search_query)
-        scope_prefix <> "(" <> Enum.join(terms, " NEAR ") <> ")"
+      # Support phrase search with quotes and fuzzy matching
+      cond do
+        # If the user actually included escaped quotes, treat it as a phrase search
+        String.contains?(search_query, "\"") ->
+          # User entered quotes directly, we'll honor them for phrase search
+          # (we already escaped them above)
+          scope_prefix <> escaped_query
 
-      true ->
-        # Single term with prefix matching
-        scope_prefix <> search_query <> "*"
+        String.contains?(search_query, " ") ->
+          # Multiple terms - use NEAR operator for proximity (FTS5: just NEAR)
+          terms =
+            search_query
+            |> String.split()
+            |> Enum.map(fn term ->
+                term
+                |> String.replace(~r/([*"\\^-])/, "\\\\\\1")
+              end)
+
+          scope_prefix <> "(" <> Enum.join(terms, " NEAR ") <> ")"
+
+        true ->
+          # Single term with prefix matching - add * at the end (already escaped above)
+          scope_prefix <> escaped_query <> "*"
+      end
     end
   end
 
