@@ -2,7 +2,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
   use ZiStudyWeb, :live_view
 
   alias ZiStudy.Questions
-  alias ZiStudyWeb.Live.QuestionHandlers
+  alias ZiStudyWeb.Live.ActiveLearning.QuestionHandlers
 
   def render(assigns) do
     ~H"""
@@ -347,8 +347,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
         # Get user answers for all questions
         questions = Enum.map(results, & &1.question)
         user_answers = Questions.get_user_answers_for_questions(current_user.id, questions)
-
-        IO.inspect(questions)
 
         # Create answer lookup map
         answer_map =

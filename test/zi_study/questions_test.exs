@@ -6,7 +6,7 @@ defmodule ZiStudy.QuestionsTest do
   alias ZiStudy.Questions
   alias ZiStudy.Questions.{Question, QuestionSet, Tag, Answer}
   alias ZiStudy.QuestionsOps.Processed
-  alias ZiStudyWeb.Live.QuestionHandlers
+  alias ZiStudyWeb.Live.ActiveLearning.QuestionHandlers
 
   describe "question_sets" do
     test "list_question_sets/0 returns all public question sets" do

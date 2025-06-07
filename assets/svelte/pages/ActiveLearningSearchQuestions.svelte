@@ -76,8 +76,6 @@
         { value: "retention_aid", label: "Retention Aids" },
     ];
 
-
-
     // Deduplicate search results by question ID
     let deduplicatedResults = $derived.by(() => {
         const seen = new Set();
@@ -116,7 +114,6 @@
         live.pushEvent("search", { query: searchQuery, config });
     };
 
-    // Watch search inputs
     $effect(() => {
         searchQuery; // Track
         selectedTypes.size; // Track
@@ -128,7 +125,6 @@
         performSearch();
     });
 
-    // Infinite scroll setup
     onMount(() => {
         if (searchInputEl) {
             searchInputEl.focus();
@@ -419,8 +415,6 @@
                         {/each}
                     </div>
                 </div>
-
-
             </div>
         {/if}
 

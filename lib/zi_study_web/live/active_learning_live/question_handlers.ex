@@ -1,4 +1,4 @@
-defmodule ZiStudyWeb.Live.QuestionHandlers do
+defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
   @moduledoc """
   Shared handlers for question-related LiveView events.
   Reduces duplication between question_set.ex and search_questions.ex.
@@ -260,5 +260,162 @@ defmodule ZiStudyWeb.Live.QuestionHandlers do
         }}
       end
     end
+  end
+
+  @doc """
+  Handles updating question set fields (title, description, is_private).
+  """
+  def handle_update_question_set(question_set_id, field, value, current_user) do
+    case Questions.get_question_set(question_set_id) do
+      nil ->
+        {:error, "Question set not found"}
+
+      question_set_db when question_set_db.owner_id != current_user.id ->
+        {:error, "You don't have permission to edit this set"}
+
+      question_set_db ->
+        update_attrs = %{String.to_atom(field) => value}
+
+        case Questions.update_question_set(question_set_db, update_attrs) do
+          {:ok, updated_set} ->
+            {:ok, updated_set}
+
+          {:error, _changeset} ->
+            {:error, "Failed to update question set"}
+        end
+    end
+  end
+
+  @doc """
+  Handles adding question to multiple sets.
+  """
+  def handle_add_question_to_sets(question_id, question_set_ids, current_user) do
+    question_id_int = String.to_integer(question_id)
+    question_set_id_ints = Enum.map(question_set_ids, &String.to_integer/1)
+
+    case Questions.add_question_to_multiple_sets(
+           current_user.id,
+           question_id_int,
+           question_set_id_ints
+         ) do
+      {:ok, %{added_to_sets: count}} ->
+        {:ok, %{count: count}}
+
+      {:error, %{added_to_sets: successes, failed_sets: failures}} ->
+        {:error, "Added to #{successes} set(s), failed for #{failures} set(s)"}
+
+      {:error, _} ->
+        {:error, "Failed to add question to sets"}
+    end
+  end
+
+  @doc """
+  Handles loading and filtering tags.
+  """
+  def handle_load_tags(search_query) do
+    tags = Questions.list_tags()
+
+    filtered_tags =
+      if search_query != "" do
+        search_pattern = String.downcase(search_query)
+
+        Enum.filter(tags, fn tag ->
+          String.contains?(String.downcase(tag.name), search_pattern)
+        end)
+      else
+        tags
+      end
+
+    Enum.map(filtered_tags, &get_tag_dto/1)
+  end
+
+  @doc """
+  Handles creating a new tag.
+  """
+  def handle_create_tag(name) do
+    case Questions.create_tag(%{name: name}) do
+      {:ok, tag} ->
+        {:ok, get_tag_dto(tag)}
+
+      {:error, _changeset} ->
+        {:error, "Failed to create tag"}
+    end
+  end
+
+  @doc """
+  Handles adding tags to a question set.
+  """
+  def handle_add_tags_to_question_set(question_set_id, tag_ids, current_user) do
+    question_set_id_int = String.to_integer(question_set_id)
+    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+
+    case Questions.get_question_set(question_set_id_int) do
+      nil ->
+        {:error, "Question set not found"}
+
+      question_set_db when question_set_db.owner_id != current_user.id ->
+        {:error, "You don't have permission to edit this set"}
+
+      question_set_db ->
+        case Questions.add_tags_to_question_set(question_set_db, tag_id_ints) do
+          {:ok, updated_set} ->
+            {:ok, updated_set}
+
+          {:error, _changeset} ->
+            {:error, "Failed to add tags"}
+        end
+    end
+  end
+
+  @doc """
+  Handles removing tags from a question set.
+  """
+  def handle_remove_tags_from_question_set(question_set_id, tag_ids, current_user) do
+    question_set_id_int = String.to_integer(question_set_id)
+    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+
+    case Questions.get_question_set(question_set_id_int) do
+      nil ->
+        {:error, "Question set not found"}
+
+      question_set_db when question_set_db.owner_id != current_user.id ->
+        {:error, "You don't have permission to edit this set"}
+
+      question_set_db ->
+        case Questions.remove_tags_from_question_set(question_set_db, tag_id_ints) do
+          {:ok, updated_set} ->
+            {:ok, updated_set}
+
+          {:error, _changeset} ->
+            {:error, "Failed to remove tags"}
+        end
+    end
+  end
+
+  @doc """
+  Gets a question set with full data including answers for a user.
+  """
+  def get_question_set_with_answers(question_set_id, user_id) do
+    question_set_db =
+      Questions.get_question_set(question_set_id)
+      |> ZiStudy.Repo.preload([:tags, :questions, :owner])
+
+    %{
+      id: question_set_db.id,
+      title: question_set_db.title,
+      description: question_set_db.description,
+      is_private: question_set_db.is_private,
+      owner: owner_to_dto(question_set_db.owner),
+      tags: Enum.map(question_set_db.tags, &get_tag_dto/1),
+      questions: Enum.map(question_set_db.questions, &get_question_dto/1),
+      answers:
+        Enum.map(
+          Questions.get_user_answers_for_questions(user_id, question_set_db.questions),
+          &answer_to_dto/1
+        ),
+      stats: Questions.get_user_question_set_stats(user_id, question_set_db.id),
+      inserted_at: question_set_db.inserted_at,
+      updated_at: question_set_db.updated_at
+    }
   end
 end

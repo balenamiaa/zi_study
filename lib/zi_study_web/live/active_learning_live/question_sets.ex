@@ -1,8 +1,8 @@
 defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
   use ZiStudyWeb, :live_view
 
-  alias ZiStudy.Questions
-  alias ZiStudyWeb.Live.QuestionHandlers
+  alias ZiStudyWeb.Live.ActiveLearning.QuestionHandlers
+  alias ZiStudyWeb.Live.ActiveLearning.QuestionSetsHandlers
 
   def render(assigns) do
     ~H"""
@@ -27,52 +27,20 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
 
     {:ok,
      socket
-     |> assign(:question_sets, get_question_sets(current_user.id))
-     |> assign(:available_tags, get_available_tags())
+     |> assign(:question_sets, QuestionSetsHandlers.get_question_sets_with_stats(current_user.id))
+     |> assign(:available_tags, QuestionSetsHandlers.get_available_tags())
      |> assign(:current_user, QuestionHandlers.owner_to_dto(current_user))}
   end
 
-  defp get_question_sets(user_id) do
-    question_sets_db =
-      Questions.list_question_sets(user_id, false)
-      |> ZiStudy.Repo.preload([:tags, :questions, :owner])
-
-    Enum.map(question_sets_db, fn question_set ->
-      %{
-        id: question_set.id,
-        title: question_set.title,
-        description: question_set.description,
-        is_private: question_set.is_private,
-        owner: QuestionHandlers.owner_to_dto(question_set.owner),
-        tags: Enum.map(question_set.tags, &QuestionHandlers.get_tag_dto/1),
-        stats: Questions.get_user_question_set_stats(user_id, question_set.id),
-        num_questions: length(question_set.questions),
-        inserted_at: question_set.inserted_at,
-        updated_at: question_set.updated_at
-      }
-    end)
-  end
-
-  defp get_available_tags do
-    QuestionHandlers.get_available_tags()
-  end
-
   def handle_event("create_question_set", params, socket) do
-    %{"title" => title, "description" => description, "is_private" => is_private} = params
     current_user = socket.assigns.current_scope.user
 
-    attrs = %{
-      title: title,
-      description: if(description == "", do: nil, else: description),
-      is_private: is_private
-    }
-
-    case Questions.create_question_set(current_user, attrs) do
+    case QuestionSetsHandlers.handle_create_question_set(params, current_user) do
       {:ok, _question_set} ->
         {:noreply,
          socket
-         |> assign(:question_sets, get_question_sets(current_user.id))
-         |> assign(:available_tags, get_available_tags())
+         |> assign(:question_sets, QuestionSetsHandlers.get_question_sets_with_stats(current_user.id))
+         |> assign(:available_tags, QuestionSetsHandlers.get_available_tags())
          |> put_flash(:info, "Question set created successfully")}
 
       {:error, _changeset} ->
@@ -82,15 +50,13 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSets do
 
   def handle_event("bulk_delete_question_sets", %{"question_set_ids" => question_set_ids}, socket) do
     current_user = socket.assigns.current_scope.user
-    question_set_id_ints = Enum.map(question_set_ids, &String.to_integer/1)
 
-    {:ok, count_deleted} =
-      Questions.bulk_delete_question_sets(current_user.id, question_set_id_ints)
+    {:ok, count_deleted} = QuestionSetsHandlers.handle_bulk_delete_question_sets(question_set_ids, current_user)
 
     {:noreply,
      socket
-     |> assign(:question_sets, get_question_sets(current_user.id))
-     |> assign(:available_tags, get_available_tags())
+     |> assign(:question_sets, QuestionSetsHandlers.get_question_sets_with_stats(current_user.id))
+     |> assign(:available_tags, QuestionSetsHandlers.get_available_tags())
      |> put_flash(:info, "Deleted #{count_deleted} question set(s) successfully")}
   end
 end
