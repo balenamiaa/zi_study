@@ -2062,21 +2062,6 @@ defmodule ZiStudy.QuestionsTest do
       assert Enum.all?(results, fn r -> is_map(r.highlights) end)
     end
 
-    test "search_questions_advanced/2 handles special search queries", %{q1: q1, q2: q2} do
-      # Test "*" for searching all
-      {results, _} = Questions.search_questions_advanced("*", limit: 10)
-      assert length(results) > 0
-      assert Enum.any?(results, fn r -> r.question.id == q1.id end) or Enum.any?(results, fn r -> r.question.id == q2.id end)
-
-      # Test prefix search "Wh*"
-      {results2, _} = Questions.search_questions_advanced("Wh", limit: 10)
-      assert Enum.any?(results2, fn r -> r.question.id == q1.id end) or Enum.any?(results2, fn r -> r.question.id == q2.id end)
-
-      # Test special characters
-      {results3, _} = Questions.search_questions_advanced("2+2", limit: 10)
-      assert length(results3) >= 0 # should not error
-    end
-
     test "search_questions_advanced/2 supports difficulty filters", %{q2: q2} do
       {results, _} = Questions.search_questions_advanced("*", difficulties: ["medium"], limit: 10)
       assert Enum.any?(results, fn r -> r.question.id == q2.id end)
@@ -2130,6 +2115,40 @@ defmodule ZiStudy.QuestionsTest do
       assert set.title == "Quick Set"
       assert set.is_private == true
       assert set.owner_id == user.id
+    end
+
+    test "search_questions_advanced/2 handles special characters gracefully", %{q1: q1, q2: q2} do
+      # Test query that used to cause errors
+      assert {:ok, {results, _}} =
+               Code.eval_string(
+                 "ZiStudy.Questions.search_questions_advanced(\"2+2\", limit: 10)"
+               )
+               |> then(fn {res, _} -> {:ok, res} end)
+
+      assert Enum.any?(results, &(&1.question.id == q1.id))
+
+      # Test with other special characters
+      assert {:ok, {res_slash, _}} =
+               Code.eval_string(
+                 "ZiStudy.Questions.search_questions_advanced(\"H2O/water\", limit: 10)"
+               )
+               |> then(fn {res, _} -> {:ok, res} end)
+
+      # This won't find anything, but it shouldn't crash
+      assert length(res_slash) == 0
+
+      assert {:ok, {res_star, _}} =
+               Code.eval_string("ZiStudy.Questions.search_questions_advanced(\"H2O*\", limit: 10)")
+               |> then(fn {res, _} -> {:ok, res} end)
+
+      assert Enum.any?(res_star, &(&1.question.id == q2.id))
+    end
+
+    test "search_questions_advanced/2 with '*' query searches all", %{q1: q1, q2: q2} do
+      {results, _} = Questions.search_questions_advanced("*", limit: 10)
+      assert length(results) >= 2
+      assert Enum.any?(results, &(&1.question.id == q1.id))
+      assert Enum.any?(results, &(&1.question.id == q2.id))
     end
   end
 

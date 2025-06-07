@@ -1034,7 +1034,6 @@ defmodule ZiStudy.Questions do
   end
 
   defp build_fts_query(query, search_scope, case_sensitive) do
-    # Handle search scope
     scope_prefix =
       case search_scope do
         [:all] ->
@@ -1058,45 +1057,42 @@ defmodule ZiStudy.Questions do
           |> Enum.join(" OR ")
       end
 
-    # Special case: "*" means search all documents (empty query)
-    if query == "*" do
-      # For SQLite FTS5, an empty string will match all documents
-      ""
-    else
-      # Build the query
-      search_query = if case_sensitive, do: query, else: String.downcase(query)
+    search_query = if case_sensitive, do: query, else: String.downcase(query)
 
-      # Escape special characters that have meaning in FTS5 syntax
-      # * is a wildcard, - is NOT, " for phrases, etc.
-      escaped_query =
-        search_query
-        |> String.replace(~r/([*"\\^-])/, "\\\\\\1")
+    # Split the query into terms by spaces.
+    terms = String.split(search_query, ~r/\s+/, trim: true)
 
-      # Support phrase search with quotes and fuzzy matching
-      cond do
-        # If the user actually included escaped quotes, treat it as a phrase search
-        String.contains?(search_query, "\"") ->
-          # User entered quotes directly, we'll honor them for phrase search
-          # (we already escaped them above)
-          scope_prefix <> escaped_query
+    # Pop the last term to handle prefix matching separately.
+    {last_term, other_terms} = List.pop_at(terms, -1)
 
-        String.contains?(search_query, " ") ->
-          # Multiple terms - use NEAR operator for proximity (FTS5: just NEAR)
-          terms =
-            search_query
-            |> String.split()
-            |> Enum.map(fn term ->
-                term
-                |> String.replace(~r/([*"\\^-])/, "\\\\\\1")
-              end)
+    # Wrap all but the last term in quotes for literal matching.
+    safe_terms =
+      Enum.map(other_terms, fn term ->
+        escaped_term = String.replace(term, "\"", "\"\"")
+        "\"#{escaped_term}\""
+      end)
 
-          scope_prefix <> "(" <> Enum.join(terms, " NEAR ") <> ")"
+    # Handle the last term: wrap it and add a '*' for prefix matching.
+    # If the user already added one, we don't add another.
+    all_terms =
+      if last_term do
+        escaped_last = String.replace(last_term, "\"", "\"\"")
 
-        true ->
-          # Single term with prefix matching - add * at the end (already escaped above)
-          scope_prefix <> escaped_query <> "*"
+        last_term_query =
+          if String.ends_with?(escaped_last, "*") do
+            "\"#{escaped_last}\""
+          else
+            "\"#{escaped_last}*\""
+          end
+
+        safe_terms ++ [last_term_query]
+      else
+        safe_terms
       end
-    end
+
+    final_query = Enum.join(all_terms, " AND ")
+
+    scope_prefix <> final_query
   end
 
   defp build_filter_clause(cursor, question_types, difficulties, tag_ids) do
