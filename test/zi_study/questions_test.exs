@@ -557,13 +557,15 @@ defmodule ZiStudy.QuestionsTest do
 
       question = question_fixture()
 
-      # Add same question twice
+      # Add question first time
       assert {:ok, _} = Questions.add_questions_to_set(question_set, [question], user.id)
-      assert {:ok, _} = Questions.add_questions_to_set(question_set, [question], user.id)
+      # Add same question second time - should skip duplicates
+      assert {:ok, _, %{skipped_duplicates: 1}} =
+               Questions.add_questions_to_set(question_set, [question], user.id)
 
       questions_in_set = Questions.get_question_set_questions_with_positions(question_set.id)
-      # Should have the question twice (database allows duplicates)
-      assert length(questions_in_set) == 2
+      # Should have the question only once (duplicates are now prevented)
+      assert length(questions_in_set) == 1
     end
   end
 
@@ -2253,7 +2255,7 @@ defmodule ZiStudy.QuestionsTest do
   end
 
   describe "QuestionHandlers DTO helpers" do
-    alias ZiStudyWeb.Live.QuestionHandlers
+    alias ZiStudyWeb.Live.ActiveLearning.QuestionHandlers
 
     test "owner_to_dto/1 returns correct map" do
       assert QuestionHandlers.owner_to_dto(%{email: "a@b.com"}) == %{email: "a@b.com"}

@@ -87,9 +87,9 @@ defmodule ZiStudy.Fixtures do
   Generate tag attributes.
   """
   def valid_tag_attributes(attrs \\ %{}) do
-    Enum.into(attrs, %{
+    Map.merge(%{
       "name" => "test-tag-#{System.unique_integer()}"
-    })
+    }, attrs)
   end
 
   @doc """

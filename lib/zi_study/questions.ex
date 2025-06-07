@@ -376,8 +376,8 @@ defmodule ZiStudy.Questions do
                 end
 
                 question_data_for_assoc =
-                  Enum.with_index(imported_questions, fn question, index ->
-                    %{id: question.id, position: index + 1}
+                  Enum.map(imported_questions, fn question ->
+                    %{id: question.id, position: nil}
                   end)
 
                 case add_questions_to_set_impl(

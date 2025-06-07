@@ -345,9 +345,16 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
   @doc """
   Handles adding tags to a question set.
   """
-  def handle_add_tags_to_question_set(question_set_id, tag_ids, current_user) do
-    question_set_id_int = String.to_integer(question_set_id)
-    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+  def handle_add_tags_to_question_set(question_set_id, tag_names_or_ids, current_user) do
+    question_set_id_int = if is_integer(question_set_id), do: question_set_id, else: String.to_integer(question_set_id)
+
+    # Convert strings that look like integers to integers, keep other strings as tag names
+    processed_tags = Enum.map(tag_names_or_ids, fn item ->
+      case Integer.parse(item) do
+        {int_val, ""} -> int_val  # It's a pure integer string
+        _ -> item                 # It's a tag name
+      end
+    end)
 
     case Questions.get_question_set(question_set_id_int) do
       nil ->
@@ -357,7 +364,7 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
         {:error, "You don't have permission to edit this set"}
 
       question_set_db ->
-        case Questions.add_tags_to_question_set(question_set_db, tag_id_ints) do
+        case Questions.add_tags_to_question_set(question_set_db, processed_tags) do
           {:ok, updated_set} ->
             {:ok, updated_set}
 
@@ -370,9 +377,16 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
   @doc """
   Handles removing tags from a question set.
   """
-  def handle_remove_tags_from_question_set(question_set_id, tag_ids, current_user) do
-    question_set_id_int = String.to_integer(question_set_id)
-    tag_id_ints = Enum.map(tag_ids, &String.to_integer/1)
+  def handle_remove_tags_from_question_set(question_set_id, tag_names_or_ids, current_user) do
+    question_set_id_int = if is_integer(question_set_id), do: question_set_id, else: String.to_integer(question_set_id)
+
+    # Convert strings that look like integers to integers, keep other strings as tag names
+    processed_tags = Enum.map(tag_names_or_ids, fn item ->
+      case Integer.parse(item) do
+        {int_val, ""} -> int_val  # It's a pure integer string
+        _ -> item                 # It's a tag name
+      end
+    end)
 
     case Questions.get_question_set(question_set_id_int) do
       nil ->
@@ -382,7 +396,7 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
         {:error, "You don't have permission to edit this set"}
 
       question_set_db ->
-        case Questions.remove_tags_from_question_set(question_set_db, tag_id_ints) do
+        case Questions.remove_tags_from_question_set(question_set_db, processed_tags) do
           {:ok, updated_set} ->
             {:ok, updated_set}
 
