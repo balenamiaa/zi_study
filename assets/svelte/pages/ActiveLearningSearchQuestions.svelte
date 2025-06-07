@@ -5,7 +5,6 @@
         SettingsIcon,
         EditIcon,
         XIcon,
-        TagIcon,
         PlusIcon,
         CheckIcon,
     } from "lucide-svelte";
@@ -28,7 +27,6 @@
         selectedQuestionIds: selectedQuestionIdsArray = [],
         bulkSelectMode = false,
         userQuestionSets = null,
-        availableTags = [],
         currentUser,
     } = $props();
 
@@ -38,12 +36,10 @@
     let showSettings = $state(false);
     let searchInputEl = $state(null);
     let isDebouncing = $state(false);
-    let tagSearchQuery = $state("");
 
     // Filters
     let selectedTypes = $state(new Set());
     let selectedDifficulties = $state(new Set());
-    let selectedTags = $state(new Set());
     let selectedScope = $state(new Set(["all"]));
 
     // Settings
@@ -82,14 +78,7 @@
         { value: "retention_aid", label: "Retention Aids" },
     ];
 
-    // Filter tags based on search
-    let filteredTags = $derived.by(() => {
-        if (!tagSearchQuery) return availableTags;
-        const search = tagSearchQuery.toLowerCase();
-        return availableTags.filter((tag) =>
-            tag.name.toLowerCase().includes(search),
-        );
-    });
+
 
     // Deduplicate search results by question ID
     let deduplicatedResults = $derived.by(() => {
@@ -113,8 +102,7 @@
         if (
             !searchQuery.trim() &&
             selectedTypes.size === 0 &&
-            selectedDifficulties.size === 0 &&
-            selectedTags.size === 0
+            selectedDifficulties.size === 0
         ) {
             return;
         }
@@ -127,7 +115,6 @@
             sort_by: sortBy,
             question_types: Array.from(selectedTypes),
             difficulties: Array.from(selectedDifficulties),
-            tag_ids: Array.from(selectedTags).map(String),
         };
 
         live.pushEvent("search", { query: searchQuery, config });
@@ -138,7 +125,6 @@
         searchQuery; // Track
         selectedTypes.size; // Track
         selectedDifficulties.size; // Track
-        selectedTags.size; // Track
         selectedScope.size; // Track
         caseSensitive; // Track
         sortBy; // Track
@@ -236,23 +222,24 @@
     }
 
     function getActiveFiltersCount() {
-        return (
-            selectedTypes.size +
-            selectedDifficulties.size +
-            selectedTags.size +
-            (selectedScope.has("all") ? 0 : selectedScope.size)
-        );
+        return selectedTypes.size + selectedDifficulties.size;
+    }
+
+    function getActiveSettingsCount() {
+        let count = 0;
+        if (caseSensitive) count++;
+        if (sortBy !== "relevance") count++;
+        if (!selectedScope.has("all")) count++;
+        return count;
     }
 
     function clearAllFilters() {
         selectedTypes.clear();
         selectedDifficulties.clear();
-        selectedTags.clear();
         selectedScope.clear();
         selectedScope.add("all");
         selectedTypes = new Set(selectedTypes);
         selectedDifficulties = new Set(selectedDifficulties);
-        selectedTags = new Set(selectedTags);
         selectedScope = new Set(selectedScope);
     }
 </script>
@@ -340,6 +327,13 @@
                             aria-label="Toggle search settings"
                         >
                             <SettingsIcon class="h-5 w-5" />
+                            {#if getActiveSettingsCount() > 0}
+                                <span
+                                    class="absolute -top-1 -right-1 badge badge-primary badge-xs"
+                                >
+                                    {getActiveSettingsCount()}
+                                </span>
+                            {/if}
                         </button>
                     </div>
                 </div>
@@ -438,57 +432,7 @@
                     </div>
                 </div>
 
-                <!-- Tags -->
-                <div>
-                    <div
-                        class="text-sm font-medium mb-2 flex items-center gap-2"
-                    >
-                        <TagIcon class="h-4 w-4" />
-                        Tags
-                    </div>
 
-                    <!-- Tag Search -->
-                    <input
-                        type="search"
-                        bind:value={tagSearchQuery}
-                        placeholder="Search tags..."
-                        class="input input-sm input-bordered w-full max-w-xs mb-2"
-                    />
-
-                    <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                        {#each filteredTags as tag}
-                            <label class="cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedTags.has(tag.id)}
-                                    onchange={() => {
-                                        if (selectedTags.has(tag.id)) {
-                                            selectedTags.delete(tag.id);
-                                        } else {
-                                            selectedTags.add(tag.id);
-                                        }
-                                        selectedTags = new Set(selectedTags);
-                                    }}
-                                    class="hidden"
-                                />
-                                <Badge
-                                    variant={selectedTags.has(tag.id)
-                                        ? "primary"
-                                        : "neutral"}
-                                    class="cursor-pointer hover:opacity-80 transition-opacity"
-                                >
-                                    {tag.name}
-                                </Badge>
-                            </label>
-                        {:else}
-                            <p class="text-sm text-base-content/50 italic">
-                                {tagSearchQuery
-                                    ? "No tags found"
-                                    : "No tags available"}
-                            </p>
-                        {/each}
-                    </div>
-                </div>
             </div>
         {/if}
 

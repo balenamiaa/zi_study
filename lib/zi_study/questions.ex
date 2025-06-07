@@ -5,6 +5,7 @@ defmodule ZiStudy.Questions do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias ZiStudy.Repo
 
   alias ZiStudy.Accounts.User
@@ -893,325 +894,328 @@ defmodule ZiStudy.Questions do
   end
 
   @doc """
-  Advanced search using FTS5 with configurable parameters and highlighting.
+  Advanced search for questions with FTS5 support, filters, and pagination.
 
-  ## Options
-    * `:cursor` - Cursor for pagination (last question ID from previous page)
-    * `:limit` - Number of results per page (default: 20)
-    * `:search_scope` - List of fields to search in (default: all fields)
-    * `:case_sensitive` - Whether search is case sensitive (default: false)
-    * `:fuzzy_threshold` - Fuzzy matching threshold 0-1 (default: 0.8)
-    * `:sort_by` - Sort order: :relevance, :newest, :oldest (default: :relevance)
-    * `:question_types` - Filter by question types
-    * `:difficulties` - Filter by difficulty levels
-    * `:tag_ids` - Filter by tag IDs
+  ## Parameters
+  - query: Search query string
+  - opts: Keyword list with:
+    - cursor: Pagination cursor for infinite scroll
+    - limit: Number of results per page (default: 20)
+    - search_scope: List of fields to search [:all] | [:question_text, :options, :answers, :explanation, :retention_aid, :instructions, :premises]
+    - case_sensitive: Boolean for case sensitivity (default: false)
+    - sort_by: :relevance | :newest | :oldest (default: :relevance)
+    - question_types: List of question types to filter by
+    - difficulties: List of difficulties to filter by
 
-  Returns `{questions_with_highlights, cursor_for_next_page}`
+
+  ## Returns
+  Tuple {results, next_cursor} where results is a list of maps with:
+  - question: Question struct
+  - snippet: FTS5 snippet with highlights
+  - highlights: Raw highlight data
+  - rank: FTS5 rank score
   """
   def search_questions_advanced(query, opts \\ []) do
+    cursor = Keyword.get(opts, :cursor)
     limit = Keyword.get(opts, :limit, 20)
-    cursor = Keyword.get(opts, :cursor, nil)
     search_scope = Keyword.get(opts, :search_scope, [:all])
     case_sensitive = Keyword.get(opts, :case_sensitive, false)
     sort_by = Keyword.get(opts, :sort_by, :relevance)
     question_types = Keyword.get(opts, :question_types, [])
     difficulties = Keyword.get(opts, :difficulties, [])
-    tag_ids = Keyword.get(opts, :tag_ids, [])
 
-    # Special case for "*" - search all documents without using FTS
+
+    # Handle special "*" query for "search all"
     if query == "*" do
-      search_all_questions(cursor, limit, sort_by, question_types, difficulties, tag_ids)
+      search_all_questions(cursor, limit, sort_by, question_types, difficulties)
     else
-      # Regular FTS5 search
-      # Build search query for FTS5
-      fts_query = build_fts_query(query, search_scope, case_sensitive)
-
-      # Base query with FTS5 search
-      base_query = """
-      WITH search_results AS (
-        SELECT
-          question_id,
-          rank,
-          snippet(questions_fts, -1, '<mark>', '</mark>', '...', 30) as snippet,
-          highlight(questions_fts, -1, '<mark>', '</mark>') as highlight_data
-        FROM questions_fts
-        WHERE questions_fts MATCH ?
-        ORDER BY rank
+      fts_search_questions(
+        query,
+        cursor,
+        limit,
+        search_scope,
+        case_sensitive,
+        sort_by,
+        question_types,
+        difficulties
       )
-      SELECT DISTINCT
-        q.*,
-        sr.rank,
-        sr.snippet,
-        sr.highlight_data
-      FROM questions q
-      INNER JOIN search_results sr ON q.id = sr.question_id
-      """
-
-      # Add filters
-      {filter_clause, filter_params} =
-        build_filter_clause(cursor, question_types, difficulties, tag_ids)
-
-      full_query = base_query <> filter_clause <> build_order_clause(sort_by) <> " LIMIT ?"
-
-      query_params = [fts_query] ++ filter_params ++ [limit + 1]
-
-      results = Ecto.Adapters.SQL.query!(Repo, full_query, query_params)
-
-      questions_with_highlights =
-        results.rows
-        |> Enum.take(limit)
-        |> Enum.map(&parse_search_result(&1, results.columns))
-
-      has_next = length(results.rows) > limit
-      next_cursor = if has_next, do: List.last(questions_with_highlights).question.id, else: nil
-
-      {questions_with_highlights, next_cursor}
     end
   end
 
-  # Special version that queries directly from questions table without FTS
-  defp search_all_questions(cursor, limit, sort_by, question_types, difficulties, tag_ids) do
-    # Start with a basic query
+  defp fts_search_questions(
+         query,
+         cursor,
+         limit,
+         search_scope,
+         case_sensitive,
+         sort_by,
+         question_types,
+         difficulties
+       ) do
+    # Build FTS5 query with proper escaping
+    fts_query = build_safe_fts_query(query, search_scope, case_sensitive)
+
+    # Build base query with FTS5 search
     base_query = """
-    SELECT q.*
+    WITH search_results AS (
+      SELECT
+        question_id,
+        rank,
+        snippet(questions_fts, -1, '<mark>', '</mark>', '...', 30) as snippet,
+        highlight(questions_fts, -1, '<mark>', '</mark>') as highlight_data
+      FROM questions_fts
+      WHERE questions_fts MATCH ?
+      ORDER BY rank
+    )
+    SELECT DISTINCT
+      q.*,
+      sr.rank,
+      sr.snippet,
+      sr.highlight_data
+    FROM questions q
+    INNER JOIN search_results sr ON q.id = sr.question_id
+    """
+
+    {query_sql, params} =
+      apply_filters_and_pagination(
+        base_query,
+        [fts_query],
+        cursor,
+        limit,
+        sort_by,
+        question_types,
+        difficulties
+      )
+
+    execute_search_query(query_sql, params, limit)
+  end
+
+  defp search_all_questions(cursor, limit, sort_by, question_types, difficulties) do
+    base_query = """
+    SELECT DISTINCT
+      q.*,
+      0.0 as rank,
+      '' as snippet,
+      '' as highlight_data
     FROM questions q
     """
 
-    # Add filters
-    {filter_clause, filter_params} =
-      build_filter_clause(cursor, question_types, difficulties, tag_ids)
+    {query_sql, params} =
+      apply_filters_and_pagination(
+        base_query,
+        [],
+        cursor,
+        limit,
+        sort_by,
+        question_types,
+        difficulties
+      )
 
-    # Add order clause based on sort_by
-    order_clause =
-      case sort_by do
-        :newest -> " ORDER BY q.inserted_at DESC, q.id"
-        :oldest -> " ORDER BY q.inserted_at ASC, q.id"
-        _ -> " ORDER BY q.id DESC" # Default ordering when not using rank
-      end
-
-    full_query = base_query <> filter_clause <> order_clause <> " LIMIT ?"
-    query_params = filter_params ++ [limit + 1]
-
-    results = Ecto.Adapters.SQL.query!(Repo, full_query, query_params)
-
-    questions =
-      results.rows
-      |> Enum.take(limit)
-      |> Enum.map(fn row ->
-        data = Enum.zip(results.columns, row) |> Enum.into(%{})
-
-        # Ensure data is a map (decode if string)
-        question_data =
-          case data["data"] do
-            s when is_binary(s) -> Jason.decode!(s)
-            m when is_map(m) -> m
-            other -> other
-          end
-
-        # Build question struct
-        question = %Question{
-          id: data["id"],
-          data: question_data,
-          difficulty: data["difficulty"],
-          type: data["type"],
-          inserted_at: data["inserted_at"],
-          updated_at: data["updated_at"]
-        }
-
-        # Create a similar structure to FTS results but without highlight/snippet
-        %{
-          question: question,
-          snippet: nil,
-          highlights: %{},
-          rank: 0
-        }
-      end)
-
-    has_next = length(results.rows) > limit
-    next_cursor = if has_next and length(questions) > 0, do: List.last(questions).question.id, else: nil
-
-    {questions, next_cursor}
+    execute_search_query(query_sql, params, limit)
   end
 
-  defp build_fts_query(query, search_scope, case_sensitive) do
-    scope_prefix =
-      case search_scope do
-        [:all] ->
-          ""
-
-        fields ->
-          field_mappings = %{
-            question_text: "question_text",
-            options: "options",
-            answers: "answers",
-            explanation: "explanation",
-            retention_aid: "retention_aid",
-            instructions: "instructions",
-            premises: "premises"
-          }
-
-          fields
-          |> Enum.map(&Map.get(field_mappings, &1))
-          |> Enum.filter(& &1)
-          |> Enum.map(&"#{&1}:")
-          |> Enum.join(" OR ")
-      end
-
+  defp build_safe_fts_query(query, search_scope, case_sensitive) do
     search_query = if case_sensitive, do: query, else: String.downcase(query)
 
-    # Split the query into terms by spaces.
+    # Split query into terms and escape each one safely
     terms = String.split(search_query, ~r/\s+/, trim: true)
 
-    # Pop the last term to handle prefix matching separately.
-    {last_term, other_terms} = List.pop_at(terms, -1)
-
-    # Wrap all but the last term in quotes for literal matching.
     safe_terms =
-      Enum.map(other_terms, fn term ->
+      Enum.map(terms, fn term ->
+        # For FTS5 safety, wrap each term in double quotes and escape internal quotes
         escaped_term = String.replace(term, "\"", "\"\"")
-        "\"#{escaped_term}\""
+
+        # Add prefix search (*) to the last character if it doesn't end with punctuation
+        if String.match?(term, ~r/[a-zA-Z0-9]$/) do
+          "\"#{escaped_term}\"*"
+        else
+          "\"#{escaped_term}\""
+        end
       end)
 
-    # Handle the last term: wrap it and add a '*' for prefix matching.
-    # If the user already added one, we don't add another.
-    all_terms =
-      if last_term do
-        escaped_last = String.replace(last_term, "\"", "\"\"")
+    # Join terms with AND
+    inner_query = Enum.join(safe_terms, " AND ")
 
-        last_term_query =
-          if String.ends_with?(escaped_last, "*") do
-            "\"#{escaped_last}\""
-          else
-            "\"#{escaped_last}*\""
-          end
-
-        safe_terms ++ [last_term_query]
-      else
-        safe_terms
-      end
-
-    final_query = Enum.join(all_terms, " AND ")
-
-    scope_prefix <> final_query
-  end
-
-  defp build_filter_clause(cursor, question_types, difficulties, tag_ids) do
-    filters = []
-    params = []
-
-    # Cursor filter
-    {filters, params} =
-      if cursor do
-        {[
-          "q.id > ?"
-        ], [cursor]}
-      else
-        {filters, params}
-      end
-
-    # Question type filter
-    {filters, params} =
-      if length(question_types) > 0 do
-        placeholders = Enum.map(1..length(question_types), fn _ -> "?" end) |> Enum.join(",")
-
-        {filters ++ ["json_extract(q.data, '$.question_type') IN (#{placeholders})"],
-         params ++ question_types}
-      else
-        {filters, params}
-      end
-
-    # Difficulty filter
-    {filters, params} =
-      if length(difficulties) > 0 do
-        placeholders = Enum.map(1..length(difficulties), fn _ -> "?" end) |> Enum.join(",")
-        {filters ++ ["q.difficulty IN (#{placeholders})"], params ++ difficulties}
-      else
-        {filters, params}
-      end
-
-    # Tag filter
-    {filters, params} =
-      if length(tag_ids) > 0 do
-        placeholders = Enum.map(1..length(tag_ids), fn _ -> "?" end) |> Enum.join(",")
-
-        tag_filter = """
-        EXISTS (
-          SELECT 1 FROM question_set_questions qsq
-          INNER JOIN question_set_tags qst ON qsq.question_set_id = qst.question_set_id
-          WHERE qsq.question_id = q.id AND qst.tag_id IN (#{placeholders})
-        )
-        """
-
-        {filters ++ [tag_filter], params ++ tag_ids}
-      else
-        {filters, params}
-      end
-
-    filter_clause =
-      if length(filters) > 0 do
-        " WHERE " <> Enum.join(filters, " AND ")
-      else
-        ""
-      end
-
-    {filter_clause, params}
-  end
-
-  defp build_order_clause(sort_by) do
-    case sort_by do
-      :relevance -> " ORDER BY sr.rank DESC, q.id"
-      :newest -> " ORDER BY q.inserted_at DESC, q.id"
-      :oldest -> " ORDER BY q.inserted_at ASC, q.id"
-      _ -> " ORDER BY sr.rank DESC, q.id"
+    # Apply column filtering if not searching all fields
+    if :all in search_scope or search_scope == [] do
+      inner_query
+    else
+      # For scoped searches, create separate column queries and combine with OR
+      # Correct FTS5 syntax: column1:(query) OR column2:(query)
+      column_queries = Enum.map(search_scope, fn column -> "#{column}:(#{inner_query})" end)
+      Enum.join(column_queries, " OR ")
     end
   end
 
-  defp parse_search_result(row, columns) do
-    # Convert row data to map with column names
-    data = Enum.zip(columns, row) |> Enum.into(%{})
+  defp apply_filters_and_pagination(
+         base_query,
+         base_params,
+         cursor,
+         limit,
+         sort_by,
+         question_types,
+         difficulties
+       ) do
+    # Start building WHERE conditions
+    conditions = []
+    params = base_params
 
-    # Ensure data is a map (decode if string)
-    question_data =
-      case data["data"] do
-        s when is_binary(s) -> Jason.decode!(s)
-        m when is_map(m) -> m
-        other -> other
+    # Add filters
+    {conditions, params} = add_question_type_filter(conditions, params, question_types)
+    {conditions, params} = add_difficulty_filter(conditions, params, difficulties)
+    {conditions, params} = add_cursor_filter(conditions, params, cursor, sort_by)
+
+    # Build WHERE clause
+    where_clause =
+      if Enum.empty?(conditions) do
+        ""
+      else
+        "WHERE " <> Enum.join(conditions, " AND ")
       end
 
-    # Extract question fields
-    question = %Question{
-      id: data["id"],
-      data: question_data,
-      difficulty: data["difficulty"],
-      type: data["type"],
-      inserted_at: data["inserted_at"],
-      updated_at: data["updated_at"]
-    }
+    # Build ORDER BY clause - use different column names for search_all vs FTS search
+    order_clause =
+      case sort_by do
+        :relevance ->
+          if String.contains?(base_query, "search_results") do
+            "ORDER BY sr.rank DESC, q.id"
+          else
+            # No relevance ranking for search_all
+            "ORDER BY q.id"
+          end
 
-    # Parse highlight data
-    highlights = parse_highlights(data["highlight_data"])
+        :newest ->
+          "ORDER BY q.inserted_at DESC, q.id"
 
-    %{
-      question: question,
-      snippet: data["snippet"],
-      highlights: highlights,
-      rank: data["rank"]
-    }
+        :oldest ->
+          "ORDER BY q.inserted_at ASC, q.id"
+
+        _ ->
+          if String.contains?(base_query, "search_results") do
+            "ORDER BY sr.rank DESC, q.id"
+          else
+            "ORDER BY q.id"
+          end
+      end
+
+    # Combine query parts
+    full_query = """
+    #{base_query}
+    #{where_clause}
+    #{order_clause}
+    LIMIT ?
+    """
+
+    {full_query, params ++ [limit + 1]}
   end
 
-  defp parse_highlights(nil), do: %{}
+  defp add_question_type_filter(conditions, params, []), do: {conditions, params}
 
-  defp parse_highlights(highlight_data) do
-    # Parse the highlight data from FTS5
-    # This will contain the highlighted versions of each field
-    highlight_data
-    |> String.split("\n")
-    |> Enum.reduce(%{}, fn line, acc ->
-      case String.split(line, ":", parts: 2) do
-        [field, content] -> Map.put(acc, field, content)
-        _ -> acc
-      end
-    end)
+  defp add_question_type_filter(conditions, params, types) do
+    placeholders = Enum.map_join(types, ",", fn _ -> "?" end)
+    condition = "q.type IN (#{placeholders})"
+    {[condition | conditions], params ++ types}
+  end
+
+  defp add_difficulty_filter(conditions, params, []), do: {conditions, params}
+
+  defp add_difficulty_filter(conditions, params, difficulties) do
+    placeholders = Enum.map_join(difficulties, ",", fn _ -> "?" end)
+    condition = "q.difficulty IN (#{placeholders})"
+    {[condition | conditions], params ++ difficulties}
+  end
+
+
+
+  defp add_cursor_filter(conditions, params, nil, _sort_by), do: {conditions, params}
+
+  defp add_cursor_filter(conditions, params, cursor, sort_by) do
+    case sort_by do
+      :relevance ->
+        condition = "(sr.rank < ? OR (sr.rank = ? AND q.id > ?))"
+        {[condition | conditions], params ++ [cursor, cursor, cursor]}
+
+      :newest ->
+        condition = "(q.inserted_at < ? OR (q.inserted_at = ? AND q.id > ?))"
+        {[condition | conditions], params ++ [cursor, cursor, cursor]}
+
+      :oldest ->
+        condition = "(q.inserted_at > ? OR (q.inserted_at = ? AND q.id > ?))"
+        {[condition | conditions], params ++ [cursor, cursor, cursor]}
+
+      _ ->
+        {conditions, params}
+    end
+  end
+
+  defp execute_search_query(query_sql, params, limit) do
+    try do
+      results = Repo.query!(query_sql, params)
+
+      rows = results.rows
+
+      {results_to_return, has_more} =
+        if length(rows) > limit do
+          {Enum.take(rows, limit), true}
+        else
+          {rows, false}
+        end
+
+      # Convert rows to result maps
+      search_results =
+        Enum.map(results_to_return, fn row ->
+          [id, data, difficulty, type, inserted_at, updated_at, rank, snippet, highlight_data] =
+            row
+
+          question = %Question{
+            id: id,
+            data: Jason.decode!(data || "{}"),
+            difficulty: difficulty,
+            type: type,
+            inserted_at: inserted_at,
+            updated_at: updated_at
+          }
+
+          # Parse highlight data
+          highlights =
+            if highlight_data && highlight_data != "" do
+              try do
+                Jason.decode!(highlight_data)
+              rescue
+                _ -> %{}
+              end
+            else
+              %{}
+            end
+
+          %{
+            question: question,
+            snippet: snippet || "",
+            highlights: highlights,
+            rank: rank || 0.0
+          }
+        end)
+
+      # Calculate next cursor
+      next_cursor =
+        if has_more and not Enum.empty?(search_results) do
+          last_result = List.last(search_results)
+
+          case last_result do
+            %{rank: rank} when rank != 0.0 -> rank
+            %{question: %{inserted_at: inserted_at}} -> inserted_at
+            _ -> nil
+          end
+        else
+          nil
+        end
+
+      {search_results, next_cursor}
+    rescue
+      e ->
+        Logger.error("Search query failed: #{inspect(e)}")
+        {[], nil}
+    end
   end
 
   @doc """

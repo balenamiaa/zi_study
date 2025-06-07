@@ -2023,20 +2023,30 @@ defmodule ZiStudy.QuestionsTest do
           "difficulty" => "medium"
         })
 
+      q3 =
+        question_fixture(:mcq_single, %{
+          "question_text" => "What is the primordial gas in the universe?",
+          "question_type" => "mcq_single",
+          "difficulty" => "hard"
+        })
+
       # Ensure FTS5 table has entries for our test questions
-      ZiStudy.Repo.query!("""
-      INSERT OR REPLACE INTO questions_fts(question_id, question_text, options, answers, explanation, retention_aid, instructions, premises)
-      SELECT
-        id,
-        json_extract(data, '$.question_text'),
-        json_extract(data, '$.options'),
-        json_extract(data, '$.answers'),
-        json_extract(data, '$.explanation'),
-        json_extract(data, '$.retention_aid'),
-        json_extract(data, '$.instructions'),
-        json_extract(data, '$.premises')
-      FROM questions WHERE id IN (?, ?)
-      """, [q1.id, q2.id])
+      ZiStudy.Repo.query!(
+        """
+        INSERT OR REPLACE INTO questions_fts(question_id, question_text, options, answers, explanation, retention_aid, instructions, premises)
+        SELECT
+          id,
+          json_extract(data, '$.question_text'),
+          json_extract(data, '$.options'),
+          json_extract(data, '$.answers'),
+          json_extract(data, '$.explanation'),
+          json_extract(data, '$.retention_aid'),
+          json_extract(data, '$.instructions'),
+          json_extract(data, '$.premises')
+        FROM questions WHERE id IN (?, ?, ?)
+        """,
+        [q1.id, q2.id, q3.id]
+      )
 
       Questions.add_questions_to_set(set1, [q1])
       Questions.add_questions_to_set(set2, [q2])
@@ -2049,6 +2059,7 @@ defmodule ZiStudy.QuestionsTest do
         set3: set3,
         q1: q1,
         q2: q2,
+        q3: q3,
         tag1: tag1,
         tag2: tag2
       }
@@ -2068,7 +2079,9 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "search_questions_advanced/2 supports type filters", %{q1: q1} do
-      {results, _} = Questions.search_questions_advanced("*", question_types: ["mcq_single"], limit: 10)
+      {results, _} =
+        Questions.search_questions_advanced("*", question_types: ["mcq_single"], limit: 10)
+
       assert Enum.any?(results, fn r -> r.question.id == q1.id end)
     end
 
@@ -2120,9 +2133,7 @@ defmodule ZiStudy.QuestionsTest do
     test "search_questions_advanced/2 handles special characters gracefully", %{q1: q1, q2: q2} do
       # Test query that used to cause errors
       assert {:ok, {results, _}} =
-               Code.eval_string(
-                 "ZiStudy.Questions.search_questions_advanced(\"2+2\", limit: 10)"
-               )
+               Code.eval_string("ZiStudy.Questions.search_questions_advanced(\"2+2\", limit: 10)")
                |> then(fn {res, _} -> {:ok, res} end)
 
       assert Enum.any?(results, &(&1.question.id == q1.id))
@@ -2138,7 +2149,9 @@ defmodule ZiStudy.QuestionsTest do
       assert length(res_slash) == 0
 
       assert {:ok, {res_star, _}} =
-               Code.eval_string("ZiStudy.Questions.search_questions_advanced(\"H2O*\", limit: 10)")
+               Code.eval_string(
+                 "ZiStudy.Questions.search_questions_advanced(\"H2O*\", limit: 10)"
+               )
                |> then(fn {res, _} -> {:ok, res} end)
 
       assert Enum.any?(res_star, &(&1.question.id == q2.id))
@@ -2150,7 +2163,59 @@ defmodule ZiStudy.QuestionsTest do
       assert Enum.any?(results, &(&1.question.id == q1.id))
       assert Enum.any?(results, &(&1.question.id == q2.id))
     end
-  end
+
+    test "search_questions_advanced/2 handles prefix search sensitively", %{q3: q3} do
+      {results, _} = Questions.search_questions_advanced("prim", limit: 10)
+      assert Enum.any?(results, &(&1.question.id == q3.id))
+    end
+
+    test "search_questions_advanced/2 handles problematic special characters without FTS errors", _context do
+      # Test various special characters that previously caused FTS5 syntax errors
+      special_chars_tests = [
+        "*",           # asterisk - should trigger search all
+        "\\",          # backslash
+        "/",           # forward slash
+        "+",           # plus sign
+        "2+2",         # expression with plus
+        "H2O/water",   # mixed alphanumeric with slash
+        "test*query",  # asterisk within term
+        "\"quoted\"",  # quoted text
+        "(parentheses)", # parentheses
+        "[brackets]",  # square brackets
+        "a & b",       # ampersand
+        "a | b",       # pipe
+        "question?",   # question mark
+        "test!",       # exclamation mark
+        "a^b",         # caret
+        "a$b",         # dollar sign
+        "a~b",         # tilde
+        "{braces}",    # curly braces
+        ":",           # colon
+        ";",           # semicolon
+      ]
+
+             # Each of these should not cause an Exqlite.Error with FTS5 syntax
+       Enum.each(special_chars_tests, fn char ->
+         assert {results, _cursor} = Questions.search_questions_advanced(char, limit: 10)
+         # Results can be empty, but no exception should be raised
+         assert is_list(results)
+       end)
+     end
+
+     test "search_questions_advanced/2 handles search scope correctly without FTS errors", %{q3: q3} do
+       # Test searching only in question_text scope - should find "primordial"
+       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:question_text], limit: 10)
+       assert Enum.any?(results, &(&1.question.id == q3.id))
+
+       # Test searching in non-existent scope for this question - should find nothing
+       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:options], limit: 10)
+       refute Enum.any?(results, &(&1.question.id == q3.id))
+
+       # Test multiple scope search - should work without OR syntax errors
+       {results, _} = Questions.search_questions_advanced("primordial", search_scope: [:question_text, :options], limit: 10)
+       assert Enum.any?(results, &(&1.question.id == q3.id))
+     end
+   end
 
   describe "QuestionHandlers DTO helpers" do
     alias ZiStudyWeb.Live.QuestionHandlers

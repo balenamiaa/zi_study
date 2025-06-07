@@ -20,7 +20,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
             selectedQuestionIds: MapSet.to_list(@selected_question_ids),
             bulkSelectMode: @bulk_select_mode,
             userQuestionSets: @user_question_sets,
-            availableTags: @available_tags,
             currentUser: @current_user_dto
           }
         }
@@ -37,8 +36,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
       case_sensitive: false,
       sort_by: :relevance,
       question_types: [],
-      difficulties: [],
-      tag_ids: []
+      difficulties: []
     }
 
     {:ok,
@@ -51,8 +49,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
      |> assign(:has_more, false)
      |> assign(:selected_question_ids, MapSet.new())
      |> assign(:bulk_select_mode, false)
-     |> assign(:user_question_sets, nil)
-     |> assign(:available_tags, QuestionHandlers.get_available_tags())}
+     |> assign(:user_question_sets, nil)}
   end
 
   def handle_event("search", %{"query" => query, "config" => config}, socket) do
@@ -342,8 +339,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
       case_sensitive: config.case_sensitive,
       sort_by: config.sort_by,
       question_types: config.question_types,
-      difficulties: config.difficulties,
-      tag_ids: config.tag_ids
+      difficulties: config.difficulties
     ]
 
     case Questions.search_questions_advanced(query, opts) do
@@ -432,8 +428,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
       case_sensitive: config["case_sensitive"] || false,
       sort_by: String.to_atom(config["sort_by"] || "relevance"),
       question_types: config["question_types"] || [],
-      difficulties: config["difficulties"] || [],
-      tag_ids: Enum.map(config["tag_ids"] || [], &String.to_integer/1)
+      difficulties: config["difficulties"] || []
     }
   end
 
