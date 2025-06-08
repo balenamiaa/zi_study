@@ -432,4 +432,155 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlers do
       updated_at: question_set_db.updated_at
     }
   end
+
+  @doc """
+  Gets question set metadata without loading all questions.
+  Much faster for large question sets.
+  """
+  def get_question_set_metadata(question_set_id, user_id) do
+    question_set_db =
+      Questions.get_question_set(question_set_id)
+      |> ZiStudy.Repo.preload([:tags, :owner])
+
+    %{
+      id: question_set_db.id,
+      title: question_set_db.title,
+      description: question_set_db.description,
+      is_private: question_set_db.is_private,
+      owner: owner_to_dto(question_set_db.owner),
+      tags: Enum.map(question_set_db.tags, &get_tag_dto/1),
+      questions: [], # Will be loaded separately
+      answers: [], # Will be loaded separately
+      stats: Questions.get_user_question_set_stats(user_id, question_set_db.id),
+      inserted_at: question_set_db.inserted_at,
+      updated_at: question_set_db.updated_at
+    }
+  end
+
+  @doc """
+  Gets a paginated set of questions for a question set with their answers.
+  Returns {questions_with_answers, pagination_info}.
+  """
+  def get_question_set_questions_page(question_set_id, user_id, page \\ 1, page_size \\ 20) do
+    # Get total count of questions in the set
+    total_questions = Questions.count_questions_in_set(question_set_id)
+    total_pages = div(total_questions + page_size - 1, page_size)
+
+    # Get paginated questions
+    questions_page = Questions.get_question_set_questions_paginated(question_set_id, page, page_size)
+
+    # Get answers for just these questions
+    user_answers = Questions.get_user_answers_for_questions(user_id, questions_page)
+
+    questions_dto = Enum.map(questions_page, &get_question_dto/1)
+    answers_dto = Enum.map(user_answers, &answer_to_dto/1)
+
+    pagination_info = %{
+      page: page,
+      page_size: page_size,
+      total_pages: total_pages,
+      total_questions: total_questions,
+      has_next: page < total_pages,
+      has_prev: page > 1
+    }
+
+    {%{questions: questions_dto, answers: answers_dto}, pagination_info}
+  end
+
+  @doc """
+  Gets a chunk of questions for streaming/progressive loading.
+  Returns {questions_chunk, loading_state_info}.
+  """
+  def get_question_set_questions_chunk(question_set_id, user_id, offset \\ 0, chunk_size \\ 30) do
+    # Get total count of questions in the set (cached for subsequent calls)
+    total_questions = Questions.count_questions_in_set(question_set_id)
+
+    # Get the chunk of questions
+    questions_chunk = Questions.get_question_set_questions_chunk(question_set_id, offset, chunk_size)
+
+    # Get answers for just these questions
+    user_answers = Questions.get_user_answers_for_questions(user_id, questions_chunk)
+
+    questions_dto = Enum.map(questions_chunk, &get_question_dto/1)
+    answers_dto = Enum.map(user_answers, &answer_to_dto/1)
+
+    new_loaded_count = offset + length(questions_chunk)
+    has_more = new_loaded_count < total_questions
+
+    loading_state_info = %{
+      loaded_count: new_loaded_count,
+      total_count: total_questions,
+      has_more: has_more
+    }
+
+    {%{questions: questions_dto, answers: answers_dto}, loading_state_info}
+  end
+
+  @doc """
+  Gets initial chunk of questions for SSR with minimal size.
+  Returns {questions_chunk, streaming_state}.
+  """
+  def get_initial_questions_chunk(question_set_id, user_id, initial_size \\ 10) do
+    # Get total count once
+    total_questions = Questions.count_questions_in_set(question_set_id)
+
+    # Get initial chunk (first N questions)
+    questions_chunk = Questions.get_question_set_questions_chunk(question_set_id, 0, initial_size)
+
+    # Get answers for just these questions (optimized query)
+    user_answers = Questions.get_user_answers_for_questions_minimal(user_id, questions_chunk)
+
+    questions_dto = Enum.map(questions_chunk, &get_question_dto/1)
+    answers_dto = Enum.map(user_answers, &answer_to_dto_minimal/1)
+
+    streaming_state = %{
+      loaded_count: length(questions_chunk),
+      total_count: total_questions,
+      has_more: length(questions_chunk) < total_questions,
+      is_streaming: false
+    }
+
+    {%{questions: questions_dto, answers: answers_dto}, streaming_state}
+  end
+
+  @doc """
+  Gets questions chunk for streaming (after initial load).
+  """
+  def get_questions_chunk(question_set_id, user_id, offset, chunk_size) do
+    # Get the chunk of questions
+    questions_chunk = Questions.get_question_set_questions_chunk(question_set_id, offset, chunk_size)
+
+    # Get answers for just these questions (optimized)
+    user_answers = Questions.get_user_answers_for_questions_minimal(user_id, questions_chunk)
+
+    questions_dto = Enum.map(questions_chunk, &get_question_dto/1)
+    answers_dto = Enum.map(user_answers, &answer_to_dto_minimal/1)
+
+    new_loaded_count = offset + length(questions_chunk)
+
+    # We need the total count - could cache this or pass it in
+    total_questions = Questions.count_questions_in_set(question_set_id)
+    has_more = new_loaded_count < total_questions
+
+    streaming_state = %{
+      loaded_count: new_loaded_count,
+      total_count: total_questions,
+      has_more: has_more,
+      is_streaming: has_more  # Keep streaming if there's more
+    }
+
+    {%{questions: questions_dto, answers: answers_dto}, streaming_state}
+  end
+
+  @doc """
+  Minimal answer DTO that doesn't include question preloading.
+  """
+  def answer_to_dto_minimal(answer) do
+    %{
+      id: answer.id,
+      question_id: answer.question_id,
+      data: answer.data,
+      is_correct: answer.is_correct
+    }
+  end
 end

@@ -71,7 +71,6 @@ defmodule ZiStudyWeb.UserLive.Registration do
   def handle_event("save", %{"user" => user_params}, socket) do
     %{assigns: %{uploaded_image_file_name: profile_picture_filename}} = socket
 
-    IO.inspect(profile_picture_filename, label: "Profile picture filename")
     user_params = Map.put(user_params, "profile_picture", profile_picture_filename)
 
     case Accounts.register_user(user_params) do
@@ -189,7 +188,7 @@ defmodule ZiStudyWeb.UserLive.Registration do
         {:noreply, new_socket}
 
       {:error, reason} ->
-        IO.inspect("Failed to open temp file for upload: #{reason}", label: "Upload Start Error")
+        IO.warn("Failed to open temp file for upload: #{reason}", label: "Upload Start Error")
         {:noreply, socket}
     end
   end

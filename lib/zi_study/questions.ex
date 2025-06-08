@@ -85,9 +85,12 @@ defmodule ZiStudy.Questions do
   These sets are always public by default.
   """
   def create_question_set_ownerless(attrs \\ %{}) do
+    # Extract tags if provided
+    {tags, attrs_without_tags} = Map.pop(attrs, :tags, [])
+
     # Normalize string keys to atom keys for the changeset
     normalized_attrs =
-      for {key, value} <- attrs, into: %{} do
+      for {key, value} <- attrs_without_tags, into: %{} do
         case key do
           key when is_binary(key) -> {String.to_atom(key), value}
           key when is_atom(key) -> {key, value}
@@ -99,16 +102,46 @@ defmodule ZiStudy.Questions do
       |> Map.put_new(:owner_id, nil)
       |> Map.put_new(:is_private, false)
 
-    %QuestionSet{}
-    |> QuestionSet.changeset(attrs_normalized)
-    |> Repo.insert()
+    case Repo.transaction(fn ->
+           # Create the question set
+           changeset =
+             %QuestionSet{}
+             |> QuestionSet.changeset(attrs_normalized)
+
+           case Repo.insert(changeset) do
+             {:ok, question_set} ->
+               # Add tags if provided
+               if Enum.empty?(tags) do
+                 question_set
+               else
+                 case add_tags_to_question_set(question_set, Enum.map(tags, & &1.name)) do
+                   {:ok, updated_set} -> updated_set
+                   {:error, reason} -> Repo.rollback(reason)
+                 end
+               end
+
+             {:error, changeset} ->
+               Repo.rollback(changeset)
+           end
+         end) do
+      {:ok, question_set} -> {:ok, question_set}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """
   Updates a question set.
   """
   def update_question_set(%QuestionSet{} = question_set, attrs) do
-    question_set
+    # Preload tags if we're updating them
+    question_set_with_tags =
+      if Map.has_key?(attrs, :tags) || Map.has_key?(attrs, "tags") do
+        Repo.preload(question_set, :tags)
+      else
+        question_set
+      end
+
+    question_set_with_tags
     |> QuestionSet.changeset(attrs)
     |> Repo.update()
   end
@@ -149,7 +182,8 @@ defmodule ZiStudy.Questions do
 
     if Enum.empty?(new_questions) do
       # No new questions to add - all were duplicates
-      {:ok, Repo.preload(question_set, :questions, force: true), %{skipped_duplicates: length(question_data_for_assoc)}}
+      {:ok, Repo.preload(question_set, :questions, force: true),
+       %{skipped_duplicates: length(question_data_for_assoc)}}
     else
       Repo.transaction(fn ->
         Enum.with_index(new_questions, fn %{id: q_id, position: pos}, index ->
@@ -320,20 +354,20 @@ defmodule ZiStudy.Questions do
 
   If `question_set_id` is provided and valid, all successfully imported questions
   will be added to that question set with sequential positions.
-  `user_id` is used to authorize adding questions to a set.
+  `user_id` is used to authorize adding questions to a set. If `user_id` is nil,
+  only ownerless (system) question sets can be modified.
   """
-  def import_questions_from_json(json_string, user_id, question_set_id \\ nil) do
+  def import_questions_from_json(json_string, user_id \\ nil, question_set_id \\ nil)
+      when is_binary(json_string) and
+           (is_nil(user_id) or is_integer(user_id)) and
+           (is_nil(question_set_id) or is_integer(question_set_id)) do
     with {:ok, raw_list} <- Jason.decode(json_string),
          true <- is_list(raw_list) do
       processed_contents =
         Enum.map(raw_list, fn item ->
           try do
-            if Map.has_key?(item, "question_type") do
-              Processed.Question.from_map(item)
-            else
-              import_struct = JsonSerializer.map_to_import_struct(item)
-              Converter.to_processed_content(import_struct)
-            end
+            import_struct = JsonSerializer.map_to_import_struct(item)
+            Converter.to_processed_content(import_struct)
           rescue
             error ->
               {:error, "Failed to process item: #{inspect(error)}"}
@@ -366,13 +400,26 @@ defmodule ZiStudy.Questions do
                 Repo.rollback("Question set with id #{question_set_id} not found.")
 
               question_set ->
-                is_owner = question_set.owner_id == user_id
-                can_add_to_set = is_owner
+                can_add_to_set =
+                  case {user_id, question_set.owner_id} do
+                    # Allow nil user to modify ownerless sets
+                    {nil, nil} -> true
+                    # User owns the set
+                    {uid, uid} when not is_nil(uid) -> true
+                    # All other cases are unauthorized
+                    _ -> false
+                  end
 
                 unless can_add_to_set do
-                  Repo.rollback(
-                    "User #{user_id} not authorized to add questions to set #{question_set_id}."
-                  )
+                  if user_id == nil do
+                    Repo.rollback(
+                      "Cannot add questions to owned question set #{question_set_id} without user authorization."
+                    )
+                  else
+                    Repo.rollback(
+                      "User #{user_id} not authorized to add questions to set #{question_set_id}."
+                    )
+                  end
                 end
 
                 question_data_for_assoc =
@@ -581,6 +628,46 @@ defmodule ZiStudy.Questions do
       Answer
       |> where([a], a.user_id == ^user_id and a.question_id in ^question_ids)
       |> preload([:user, :question])
+      |> Repo.all()
+    end
+  end
+
+  @doc """
+  Gets user answers for questions with minimal data (no preloading).
+  Only returns answer data + question_id, avoiding N+1 queries.
+  Much faster for large question sets.
+
+  ## Examples
+
+      iex> questions = [%Question{id: 1}, %Question{id: 2}]
+      iex> get_user_answers_for_questions_minimal(user_id, questions)
+      [%Answer{question_id: 1, data: %{...}}, %Answer{question_id: 2, data: %{...}}]
+  """
+  def get_user_answers_for_questions_minimal(user_id, questions) when is_list(questions) do
+    question_ids =
+      questions
+      |> Enum.map(fn
+        %Question{id: id} -> id
+        %{id: id} -> id
+        id when is_integer(id) -> id
+        _ -> nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if Enum.empty?(question_ids) do
+      []
+    else
+      Answer
+      |> where([a], a.user_id == ^user_id and a.question_id in ^question_ids)
+      |> select([a], %{
+        id: a.id,
+        question_id: a.question_id,
+        data: a.data,
+        is_correct: a.is_correct,
+        user_id: a.user_id,
+        inserted_at: a.inserted_at,
+        updated_at: a.updated_at
+      })
       |> Repo.all()
     end
   end
@@ -951,7 +1038,6 @@ defmodule ZiStudy.Questions do
     question_types = Keyword.get(opts, :question_types, [])
     difficulties = Keyword.get(opts, :difficulties, [])
 
-
     # Handle special "*" query for "search all"
     if query == "*" do
       search_all_questions(cursor, limit, sort_by, question_types, difficulties)
@@ -1151,8 +1237,6 @@ defmodule ZiStudy.Questions do
     condition = "q.difficulty IN (#{placeholders})"
     {[condition | conditions], params ++ difficulties}
   end
-
-
 
   defp add_cursor_filter(conditions, params, nil, _sort_by), do: {conditions, params}
 
@@ -1742,5 +1826,113 @@ defmodule ZiStudy.Questions do
       question_set ->
         add_questions_to_set(question_set, question_ids, user_id)
     end
+  end
+
+  @doc """
+  Counts the number of questions in a question set.
+  """
+  def count_questions_in_set(question_set_id) do
+    from(qsj in "question_set_questions",
+      where: qsj.question_set_id == ^question_set_id,
+      select: count(qsj.question_id)
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Gets a paginated list of questions from a question set.
+  Returns questions ordered by their position in the set.
+  """
+  def get_question_set_questions_paginated(question_set_id, page \\ 1, page_size \\ 20) do
+    offset = (page - 1) * page_size
+
+    from(q in Question,
+      join: qsj in "question_set_questions",
+      on: q.id == qsj.question_id,
+      where: qsj.question_set_id == ^question_set_id,
+      order_by: qsj.position,
+      limit: ^page_size,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a chunk of questions from a question set for streaming/progressive loading.
+  Returns questions ordered by their position in the set.
+  """
+  def get_question_set_questions_chunk(question_set_id, offset \\ 0, chunk_size \\ 30) do
+    from(q in Question,
+      join: qsj in "question_set_questions",
+      on: q.id == qsj.question_id,
+      where: qsj.question_set_id == ^question_set_id,
+      order_by: qsj.position,
+      limit: ^chunk_size,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets questions from a question set with optional search and filtering.
+  Supports pagination for large question sets.
+  """
+  def get_question_set_questions_filtered(question_set_id, opts \\ []) do
+    search_query = Keyword.get(opts, :search, "")
+    difficulty_range = Keyword.get(opts, :difficulty_range, [1, 5])
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+
+    offset = (page - 1) * page_size
+    search_pattern = "%#{String.downcase(search_query)}%"
+
+    base_query =
+      from(q in Question,
+        join: qsj in "question_set_questions",
+        on: q.id == qsj.question_id,
+        where: qsj.question_set_id == ^question_set_id,
+        order_by: qsj.position
+      )
+
+    filtered_query =
+      base_query
+      |> add_search_filter(search_pattern, search_query)
+      |> add_difficulty_filter(difficulty_range)
+
+    # Get total count for pagination
+    total_count = filtered_query |> exclude(:order_by) |> Repo.aggregate(:count, :id)
+    total_pages = div(total_count + page_size - 1, page_size)
+
+    # Get paginated results
+    questions =
+      filtered_query
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+
+    {questions, %{
+      page: page,
+      page_size: page_size,
+      total_pages: total_pages,
+      total_count: total_count,
+      has_next: page < total_pages,
+      has_prev: page > 1
+    }}
+  end
+
+  defp add_search_filter(query, _search_pattern, ""), do: query
+
+  defp add_search_filter(query, search_pattern, _search_query) do
+    from q in query,
+      where:
+        fragment("LOWER(?) LIKE ?", q.data["question_text"], ^search_pattern) or
+        fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
+  end
+
+  defp add_difficulty_filter(query, [min_diff, max_diff]) do
+    from q in query,
+      where:
+        fragment("CAST(? AS INTEGER)", q.data["difficulty"]) >= ^min_diff and
+        fragment("CAST(? AS INTEGER)", q.data["difficulty"]) <= ^max_diff
   end
 end

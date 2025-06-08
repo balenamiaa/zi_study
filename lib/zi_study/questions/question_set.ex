@@ -25,5 +25,13 @@ defmodule ZiStudy.Questions.QuestionSet do
     |> cast(attrs, [:title, :description, :owner_id, :is_private])
     |> validate_required([:title])
     |> foreign_key_constraint(:owner_id)
+    |> maybe_put_tags(attrs)
+  end
+
+  defp maybe_put_tags(changeset, attrs) do
+    case Map.get(attrs, :tags) || Map.get(attrs, "tags") do
+      nil -> changeset
+      tags -> put_assoc(changeset, :tags, tags)
+    end
   end
 end

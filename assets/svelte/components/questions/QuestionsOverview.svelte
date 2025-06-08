@@ -7,10 +7,11 @@
         filteredQuestions,
         currentQuestionIndex = $bindable(0),
         handleSliderChange,
+        loadingState = null,
         class: userClass = "",
     } = $props();
 
-    let totalQuestions = $derived(questionSet?.questions?.length || 0);
+    let totalQuestions = $derived(loadingState?.total_count || questionSet?.questions?.length || 0);
     let answeredQuestions = $derived(questionSet?.stats?.total_answers || 0);
     let correctAnswers = $derived(questionSet?.stats?.correct_answers || 0);
 

@@ -83,13 +83,8 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
         test_true_false_question_data(),
         # Written (processed format)
         test_written_question_data(),
-        # Cloze (processed format)
-        %{
-          "question_type" => "cloze",
-          "question_text" => "Fill in the ____",
-          "answers" => ["blank"],
-          "difficulty" => "medium"
-        }
+        # Cloze (import format)
+        cloze_import_data()
       ]
 
       json_string = Jason.encode!(json_data)
@@ -110,11 +105,12 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
       user = user_fixture()
 
       json_data = [
-        # Valid processed question
+        # Valid import format question
         test_mcq_single_question_data(),
-        # Invalid question type
+        # Invalid question type (import format with invalid type)
         %{
-          "question_type" => "unknown_processed_type",  # Unknown type
+          "temp_id" => "invalid1",
+          "question_type" => "unknown_import_type",  # Unknown type
           "difficulty" => "easy",
           "question_text" => "Question?"
         }
@@ -133,22 +129,23 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
       user = user_fixture()
 
       json_data = [
-        # Missing required fields for processed format
+        # Missing required fields for import format
         %{
+          "temp_id" => "incomplete1",
           "question_type" => "mcq_single",
           "difficulty" => "easy"
-          # Missing question_text, options, correct_index
+          # Missing question_text, options, correct_option_temp_id
         }
       ]
 
       json_string = Jason.encode!(json_data)
 
-      # This should fail during create_question/1 with changeset errors, not processing
-      assert {:error, error_message} =
+      # This should fail during processing phase since data is incomplete
+      assert {:error, :invalid_question_data, failed_conversions} =
                Questions.import_questions_from_json(json_string, user.id)
 
-      assert is_binary(error_message)
-      assert String.contains?(error_message, "Failed to import question at index")
+      assert length(failed_conversions) == 1
+      assert match?({:error, _}, hd(failed_conversions))
     end
 
     test "handles empty JSON array" do
@@ -165,10 +162,14 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
       # Create a question that will pass processing but fail database constraints
       json_data = [
         %{
+          "temp_id" => "invalid_db1",
           "question_type" => "mcq_single",
           "question_text" => "",  # Empty question_text should fail validation
-          "options" => ["A", "B"],
-          "correct_index" => 0,
+          "options" => [
+            %{"temp_id" => "opt1", "text" => "A"},
+            %{"temp_id" => "opt2", "text" => "B"}
+          ],
+          "correct_option_temp_id" => "opt1",
           "difficulty" => "easy"
         }
       ]
@@ -189,9 +190,13 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
          test_mcq_single_question_data(),
         # Invalid question (missing question_text)
         %{
+          "temp_id" => "incomplete2",
           "question_type" => "mcq_single",
-          "options" => ["A", "B"],
-          "correct_index" => 0,
+          "options" => [
+            %{"temp_id" => "opt1", "text" => "A"},
+            %{"temp_id" => "opt2", "text" => "B"}
+          ],
+          "correct_option_temp_id" => "opt2",
           "difficulty" => "easy"
           # Missing question_text
         },
@@ -246,13 +251,19 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
       # First import - add 2 questions with unique content
       json_data1 = [
         %{
+          "temp_id" => "batch1_q1",
           "question_type" => "mcq_single",
           "question_text" => "First batch: What is 2 + 2?",
-          "options" => ["3", "4", "5"],
-          "correct_index" => 1,
+          "options" => [
+            %{"temp_id" => "opt1", "text" => "3"},
+            %{"temp_id" => "opt2", "text" => "4"},
+            %{"temp_id" => "opt3", "text" => "5"}
+          ],
+          "correct_option_temp_id" => "opt2",
           "difficulty" => "easy"
         },
         %{
+          "temp_id" => "batch1_q2",
           "question_type" => "true_false",
           "question_text" => "First batch: The sky is blue",
           "is_correct_true" => true,
@@ -274,10 +285,11 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
       # Second import - add 1 more question with unique content
       json_data2 = [
         %{
+          "temp_id" => "batch2_q1",
           "question_type" => "written",
           "question_text" => "Second batch: Explain photosynthesis",
           "difficulty" => "hard",
-          "correct_answer" => "Plants convert sunlight to energy"
+          "correct_answer_text" => "Plants convert sunlight to energy"
         }
       ]
       json_string2 = Jason.encode!(json_data2)
@@ -334,10 +346,14 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
 
       json_data = [
         %{
+          "temp_id" => "minimal1",
           "question_type" => "mcq_single",
           "question_text" => "Question with minimal fields?",
-          "options" => ["A", "B"],
-          "correct_index" => 0,
+          "options" => [
+            %{"temp_id" => "opt1", "text" => "A"},
+            %{"temp_id" => "opt2", "text" => "B"}
+          ],
+          "correct_option_temp_id" => "opt1",
           "difficulty" => "easy",
           "retention_aid" => nil,
           "explanation" => ""
@@ -355,36 +371,16 @@ defmodule ZiStudy.QuestionsImportEdgeCasesTest do
     end
   end
 
-  # Helper functions for test data
+  # Helper functions for test data - using import format
   defp test_mcq_single_question_data do
-    %{
-      "question_type" => "mcq_single",
-      "question_text" => "What is 2 + 2?",
-      "options" => ["3", "4", "5"],
-      "correct_index" => 1,
-      "difficulty" => "easy",
-      "retention_aid" => "Basic math",
-      "explanation" => "2 + 2 = 4"
-    }
+    mcq_single_import_data()
   end
 
   defp test_true_false_question_data do
-    %{
-      "question_type" => "true_false",
-      "question_text" => "The sky is blue",
-      "is_correct_true" => true,
-      "difficulty" => "easy",
-      "explanation" => "The sky appears blue due to light scattering"
-    }
+    true_false_import_data()
   end
 
   defp test_written_question_data do
-    %{
-      "question_type" => "written",
-      "question_text" => "Explain photosynthesis",
-      "difficulty" => "hard",
-      "correct_answer" => "Process by which plants convert light to energy",
-      "explanation" => "Photosynthesis involves chlorophyll and produces glucose"
-    }
+    written_import_data()
   end
 end

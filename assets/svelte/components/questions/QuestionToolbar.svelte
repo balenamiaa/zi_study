@@ -76,16 +76,27 @@
 
             <!-- Retention Aid -->
             {#if retentionAid && isAnswered}
-                <div class="flex flex-1 min-w-0 items-center justify-start">
-                    <div class="tooltip tooltip-top flex items-center min-w-0">
+                <div
+                    class="flex flex-1 min-w-0 items-center justify-start mx-2"
+                >
+                    <div class="relative group w-full">
                         <div
-                            class="badge badge-info badge-sm gap-1 cursor-help select-none overflow-hidden"
+                            class="badge badge-info gap-1 cursor-help select-none py-2 min-h-[2rem] h-[3rem] w-full overflow-hidden flex items-center"
+                            tabindex="0"
+                            role="button"
+                            aria-label="Retention aid - hover or focus for full content"
+                            aria-describedby="retention-tooltip-{questionNumber}"
+                            onkeydown={(e) =>
+                                e.key === "Enter" || e.key === " "
+                                    ? e.currentTarget.focus()
+                                    : null}
                         >
                             <svg
                                 class="w-3 h-3 shrink-0"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
+                                aria-hidden="true"
                             >
                                 <path
                                     stroke-linecap="round"
@@ -94,21 +105,42 @@
                                     d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
                                 />
                             </svg>
-                            <span
-                                class="inline-flex flex-1 min-w-0 whitespace-nowrap overflow-auto"
+                            <div
+                                class="flex-1 h-full overflow-y-auto retention-aid-scroll pr-1"
                             >
                                 <MarkdownContent
                                     content={retentionAid}
-                                    class="text-xs inline"
+                                    class="text-xs leading-tight"
                                 />
-                            </span>
+                            </div>
                         </div>
 
-                        <div class="tooltip-content">
+                        <!-- Custom Tooltip -->
+                        <div
+                            id="retention-tooltip-{questionNumber}"
+                            class="absolute {questionNumber === 1
+                                ? 'top-full mt-2'
+                                : 'bottom-full mb-2'} left-1/2 z-[9999]
+                                   opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 group-focus-within:scale-100
+                                   transition-all duration-200 ease-out pointer-events-none
+                                   bg-base-100 border border-base-300 rounded-lg shadow-xl p-4 max-w-sm w-max min-w-[16rem]
+                                   -translate-x-1/2 transform-gpu will-change-transform"
+                            role="tooltip"
+                        >
                             <MarkdownContent
                                 content={retentionAid}
-                                class="text-xs inline"
+                                class="text-sm leading-relaxed max-h-64 overflow-y-auto"
                             />
+                            <!-- Tooltip Arrow -->
+                            <div
+                                class="absolute {questionNumber === 1
+                                    ? 'bottom-full'
+                                    : 'top-full'} left-1/2 transform -translate-x-1/2
+                                        border-4 border-transparent {questionNumber ===
+                                1
+                                    ? 'border-b-base-100'
+                                    : 'border-t-base-100'}"
+                            ></div>
                         </div>
                     </div>
                 </div>
@@ -220,5 +252,44 @@
     /* Action bar hover effect */
     .inline-flex:hover {
         transform: translateY(-1px);
+    }
+
+    /* Retention aid scrollbar */
+    .retention-aid-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.8) rgba(255, 255, 255, 0.2);
+    }
+
+    .retention-aid-scroll::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .retention-aid-scroll::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+    }
+
+    .retention-aid-scroll::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.8);
+        border-radius: 2px;
+    }
+
+    .retention-aid-scroll::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 1);
+    }
+
+    /* Prevent tooltip flicker by ensuring stable positioning */
+    [role="tooltip"] {
+        transform-origin: center top;
+    }
+
+    [role="tooltip"].top-full {
+        transform-origin: center bottom;
+    }
+
+    /* Ensure retention aid uses maximum available width */
+    .badge {
+        min-width: 0;
+        flex-shrink: 1;
     }
 </style>

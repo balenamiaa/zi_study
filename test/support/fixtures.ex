@@ -7,6 +7,16 @@ defmodule ZiStudy.Fixtures do
   alias ZiStudy.Questions
   alias ZiStudy.QuestionsOps.Processed
 
+  # Helper function to convert atom keys to string keys
+  defp stringify_keys(map) when is_map(map) do
+    for {key, value} <- map, into: %{} do
+      case key do
+        key when is_atom(key) -> {to_string(key), value}
+        key when is_binary(key) -> {key, value}
+      end
+    end
+  end
+
   @doc """
   Generate a unique user email.
   """
@@ -89,7 +99,7 @@ defmodule ZiStudy.Fixtures do
   def valid_tag_attributes(attrs \\ %{}) do
     Map.merge(%{
       "name" => "test-tag-#{System.unique_integer()}"
-    }, attrs)
+    }, stringify_keys(attrs))
   end
 
   @doc """
@@ -105,7 +115,7 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate MCQ single question data.
+  Generate MCQ single question data in processed format.
   """
   def mcq_single_question_data do
     %{
@@ -119,7 +129,27 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate MCQ multiple question data.
+  Generate MCQ single question data in import format.
+  """
+  def mcq_single_import_data do
+    %{
+      "temp_id" => "mcq1",
+      "question_text" => "What is 2 + 2?",
+      "options" => [
+        %{"temp_id" => "opt1", "text" => "3"},
+        %{"temp_id" => "opt2", "text" => "4"},
+        %{"temp_id" => "opt3", "text" => "5"},
+        %{"temp_id" => "opt4", "text" => "6"}
+      ],
+      "correct_option_temp_id" => "opt2",
+      "explanation" => "2 + 2 = 4",
+      "difficulty" => "easy",
+      "question_type" => "mcq_single"
+    }
+  end
+
+  @doc """
+  Generate MCQ multiple question data in processed format.
   """
   def mcq_multi_question_data do
     %{
@@ -133,7 +163,27 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate true/false question data.
+  Generate MCQ multiple question data in import format.
+  """
+  def mcq_multi_import_data do
+    %{
+      "temp_id" => "mcq_multi1",
+      "question_text" => "Which of the following are prime numbers?",
+      "options" => [
+        %{"temp_id" => "opt1", "text" => "2"},
+        %{"temp_id" => "opt2", "text" => "3"},
+        %{"temp_id" => "opt3", "text" => "4"},
+        %{"temp_id" => "opt4", "text" => "5"}
+      ],
+      "correct_option_temp_ids" => ["opt1", "opt2", "opt4"],
+      "explanation" => "2, 3, and 5 are prime numbers",
+      "difficulty" => "medium",
+      "question_type" => "mcq_multi"
+    }
+  end
+
+  @doc """
+  Generate true/false question data in processed format.
   """
   def true_false_question_data do
     %{
@@ -146,7 +196,21 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate written question data.
+  Generate true/false question data in import format.
+  """
+  def true_false_import_data do
+    %{
+      "temp_id" => "tf1",
+      "question_text" => "The Earth is round.",
+      "is_correct_true" => true,
+      "explanation" => "The Earth is approximately spherical",
+      "difficulty" => "easy",
+      "question_type" => "true_false"
+    }
+  end
+
+  @doc """
+  Generate written question data in processed format.
   """
   def written_question_data do
     %{
@@ -159,7 +223,21 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate cloze question data.
+  Generate written question data in import format.
+  """
+  def written_import_data do
+    %{
+      "temp_id" => "written1",
+      "question_text" => "Explain the concept of gravity.",
+      "correct_answer_text" => "Gravity is a fundamental force that attracts objects with mass",
+      "explanation" => "Gravity is described by Einstein's general relativity",
+      "difficulty" => "hard",
+      "question_type" => "written"
+    }
+  end
+
+  @doc """
+  Generate cloze question data in processed format.
   """
   def cloze_question_data do
     %{
@@ -172,7 +250,21 @@ defmodule ZiStudy.Fixtures do
   end
 
   @doc """
-  Generate EMQ question data.
+  Generate cloze question data in import format.
+  """
+  def cloze_import_data do
+    %{
+      "temp_id" => "cloze1",
+      "question_text" => "The capital of France is _____ and it is located in _____.",
+      "answers" => ["Paris", "Europe"],
+      "explanation" => "Paris is the capital and largest city of France",
+      "difficulty" => "easy",
+      "question_type" => "cloze"
+    }
+  end
+
+  @doc """
+  Generate EMQ question data in processed format.
   """
   def emq_question_data do
     %{
@@ -180,6 +272,31 @@ defmodule ZiStudy.Fixtures do
       "premises" => ["First planet", "Second planet", "Third planet"],
       "options" => ["Mercury", "Venus", "Earth", "Mars"],
       "matches" => [[0, 0], [1, 1], [2, 2]],
+      "explanation" => "Mercury, Venus, and Earth are the first three planets",
+      "difficulty" => "medium",
+      "question_type" => "emq"
+    }
+  end
+
+  @doc """
+  Generate EMQ question data in import format.
+  """
+  def emq_import_data do
+    %{
+      "temp_id" => "emq1",
+      "instructions" => "Match each planet with its position from the Sun",
+      "premises" => [
+        %{"temp_id" => "p1", "text" => "First planet"},
+        %{"temp_id" => "p2", "text" => "Second planet"},
+        %{"temp_id" => "p3", "text" => "Third planet"}
+      ],
+      "options" => [
+        %{"temp_id" => "o1", "text" => "Mercury"},
+        %{"temp_id" => "o2", "text" => "Venus"},
+        %{"temp_id" => "o3", "text" => "Earth"},
+        %{"temp_id" => "o4", "text" => "Mars"}
+      ],
+      "matches" => [["p1", "o1"], ["p2", "o2"], ["p3", "o3"]],
       "explanation" => "Mercury, Venus, and Earth are the first three planets",
       "difficulty" => "medium",
       "question_type" => "emq"

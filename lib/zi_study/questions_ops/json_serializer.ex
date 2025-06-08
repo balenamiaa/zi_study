@@ -29,26 +29,36 @@ defmodule ZiStudy.QuestionsOps.JsonSerializer do
   @spec map_to_import_struct(map()) :: QuestionImport.t() | no_return()
   def map_to_import_struct(data) do
     case data["question_type"] do
-      "mcq-single" ->
+      "mcq_single" ->
         %QuestionImport.McqSingle{
           temp_id: data["temp_id"],
           question_type: data["question_type"],
           difficulty: data["difficulty"],
           question_text: data["question_text"],
           retention_aid: data["retention_aid"],
-          options: Enum.map(data["options"], &struct!(QuestionImport.McqOption, &1)),
+          options: Enum.map(data["options"], fn opt ->
+            %QuestionImport.McqOption{
+              temp_id: opt["temp_id"],
+              text: opt["text"]
+            }
+          end),
           correct_option_temp_id: data["correct_option_temp_id"],
           explanation: data["explanation"]
         }
 
-      "mcq-multi" ->
+      "mcq_multi" ->
         %QuestionImport.McqMulti{
           temp_id: data["temp_id"],
           question_type: data["question_type"],
           difficulty: data["difficulty"],
           question_text: data["question_text"],
           retention_aid: data["retention_aid"],
-          options: Enum.map(data["options"], &struct!(QuestionImport.McqOption, &1)),
+          options: Enum.map(data["options"], fn opt ->
+            %QuestionImport.McqOption{
+              temp_id: opt["temp_id"],
+              text: opt["text"]
+            }
+          end),
           correct_option_temp_ids: data["correct_option_temp_ids"],
           explanation: data["explanation"]
         }
@@ -64,7 +74,7 @@ defmodule ZiStudy.QuestionsOps.JsonSerializer do
           explanation: data["explanation"]
         }
 
-      "true-false" ->
+      "true_false" ->
         %QuestionImport.TrueFalse{
           temp_id: data["temp_id"],
           question_type: data["question_type"],
@@ -93,8 +103,18 @@ defmodule ZiStudy.QuestionsOps.JsonSerializer do
           difficulty: data["difficulty"],
           instructions: data["instructions"],
           retention_aid: data["retention_aid"],
-          premises: Enum.map(data["premises"], &struct!(QuestionImport.EmqPremise, &1)),
-          options: Enum.map(data["options"], &struct!(QuestionImport.EmqOption, &1)),
+          premises: Enum.map(data["premises"], fn premise ->
+            %QuestionImport.EmqPremise{
+              temp_id: premise["temp_id"],
+              text: premise["text"]
+            }
+          end),
+          options: Enum.map(data["options"], fn opt ->
+            %QuestionImport.EmqOption{
+              temp_id: opt["temp_id"],
+              text: opt["text"]
+            }
+          end),
           matches: Enum.map(data["matches"], fn [p, o] -> {p, o} end),
           explanation: data["explanation"]
         }

@@ -156,7 +156,7 @@ defmodule ZiStudy.QuestionsOps.ConverterTest do
       assert result.instructions == "Match the items"
       assert result.premises == ["First item", "Second item"]
       assert result.options == ["Match A", "Match B"]
-      assert result.matches == [{0, 0}, {1, 1}]
+      assert result.matches == [[0, 0], [1, 1]]
       assert result.explanation == "These are the correct matches"
       assert result.difficulty == "hard"
       assert result.retention_aid == "Think about the relationships"

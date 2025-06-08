@@ -2,7 +2,11 @@
     import QuestionToolbar from "./QuestionToolbar.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
     import RadioWithSpinner from "./RadioWithSpinner.svelte";
-    import { setupQuestionEvents, createAnswerResetHandler, createSubmissionHandler } from "../../utils/questionUtils.js";
+    import {
+        setupQuestionEvents,
+        createAnswerResetHandler,
+        createSubmissionHandler,
+    } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -21,7 +25,10 @@
 
     let isAnswered = $derived(userAnswer !== null && userAnswer !== undefined);
 
-    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
+    const handleSubmission = createSubmissionHandler(
+        submitAnswer,
+        (loading) => (isSubmitting = loading),
+    );
 
     function handleOptionSelect(index) {
         if (!isAnswered && !isSubmitting) {
@@ -40,13 +47,30 @@
         isSubmitting = false;
     }
 
-    const handleAnswerReset = createAnswerResetHandler(data, questionNumber, () => {
-        selectedOption = null;
-        isSubmitting = false;
+    const handleAnswerReset = createAnswerResetHandler(
+        data,
+        questionNumber,
+        () => {
+            selectedOption = null;
+            isSubmitting = false;
+        },
+    );
+
+    $effect(() => {
+        if (userAnswer === null || userAnswer === undefined) {
+            selectedOption = null;
+            isSubmitting = false;
+        } else {
+            selectedOption = userAnswer.data?.selected_index ?? null;
+        }
     });
 
     $effect(() => {
-        return setupQuestionEvents(live, handleAnswerSubmitted, handleAnswerReset);
+        return setupQuestionEvents(
+            live,
+            handleAnswerSubmitted,
+            handleAnswerReset,
+        );
     });
 </script>
 

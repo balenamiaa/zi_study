@@ -83,6 +83,40 @@ defmodule ZiStudy.QuestionsTest do
       assert question_set.is_private == false
     end
 
+    test "create_question_set_ownerless/1 creates question set with tags" do
+      tag1 = tag_fixture(%{name: "Surgery"})
+      tag2 = tag_fixture(%{name: "Stage 4"})
+
+      valid_attrs = Map.merge(valid_question_set_attributes(), %{
+        tags: [tag1, tag2]
+      })
+
+      assert {:ok, %QuestionSet{} = question_set} =
+               Questions.create_question_set_ownerless(valid_attrs)
+
+      # Reload to get tags
+      question_set_with_tags = Questions.get_question_set(question_set.id)
+
+      assert question_set_with_tags.title == valid_attrs["title"]
+      assert question_set_with_tags.owner_id == nil
+      assert question_set_with_tags.is_private == false
+
+      tag_names = Enum.map(question_set_with_tags.tags, & &1.name)
+      assert "Surgery" in tag_names
+      assert "Stage 4" in tag_names
+      assert length(question_set_with_tags.tags) == 2
+    end
+
+    test "create_question_set_ownerless/1 works without tags" do
+      valid_attrs = valid_question_set_attributes()
+
+      assert {:ok, %QuestionSet{} = question_set} =
+               Questions.create_question_set_ownerless(valid_attrs)
+
+      question_set_with_tags = Questions.get_question_set(question_set.id)
+      assert length(question_set_with_tags.tags) == 0
+    end
+
     test "update_question_set/2 with valid data updates the question set" do
       question_set = question_set_fixture()
       update_attrs = %{title: "Updated Title", description: "Updated Description"}
@@ -107,6 +141,73 @@ defmodule ZiStudy.QuestionsTest do
       assert question_set.description == updated_question_set.description
       assert question_set.is_private == updated_question_set.is_private
       assert question_set.owner_id == updated_question_set.owner_id
+    end
+
+    test "update_question_set/2 with tags updates the question set tags" do
+      question_set = question_set_fixture()
+      tag1 = tag_fixture(%{name: "Surgery"})
+      tag2 = tag_fixture(%{name: "Medicine"})
+
+      # Update with tags
+      update_attrs = %{
+        title: "Updated Title",
+        tags: [tag1, tag2]
+      }
+
+      assert {:ok, %QuestionSet{} = updated_set} =
+               Questions.update_question_set(question_set, update_attrs)
+
+      assert updated_set.title == "Updated Title"
+
+      # Reload to get tags
+      reloaded_set = Questions.get_question_set(updated_set.id)
+      tag_names = Enum.map(reloaded_set.tags, & &1.name) |> Enum.sort()
+      assert tag_names == ["Medicine", "Surgery"]
+      assert length(reloaded_set.tags) == 2
+    end
+
+    test "update_question_set/2 with string key tags updates the question set tags" do
+      question_set = question_set_fixture()
+      tag1 = tag_fixture(%{name: "Biology"})
+      tag2 = tag_fixture(%{name: "Anatomy"})
+
+      # Update with tags using string keys
+      update_attrs = %{
+        "title" => "Updated Title",
+        "tags" => [tag1, tag2]
+      }
+
+      assert {:ok, %QuestionSet{} = updated_set} =
+               Questions.update_question_set(question_set, update_attrs)
+
+      assert updated_set.title == "Updated Title"
+
+      # Reload to get tags
+      reloaded_set = Questions.get_question_set(updated_set.id)
+      tag_names = Enum.map(reloaded_set.tags, & &1.name) |> Enum.sort()
+      assert tag_names == ["Anatomy", "Biology"]
+      assert length(reloaded_set.tags) == 2
+    end
+
+        test "update_question_set/2 without tags doesn't affect existing tags" do
+      question_set = question_set_fixture()
+      _tag1 = tag_fixture(%{name: "Existing"})
+
+      # First, add a tag via add_tags_to_question_set
+      {:ok, set_with_tag} = Questions.add_tags_to_question_set(question_set, ["Existing"])
+
+      # Update without mentioning tags
+      update_attrs = %{title: "Updated Title"}
+
+      assert {:ok, %QuestionSet{} = updated_set} =
+               Questions.update_question_set(set_with_tag, update_attrs)
+
+      assert updated_set.title == "Updated Title"
+
+      # Reload to get tags - should still have the existing tag
+      reloaded_set = Questions.get_question_set(updated_set.id)
+      assert length(reloaded_set.tags) == 1
+      assert hd(reloaded_set.tags).name == "Existing"
     end
 
     test "delete_question_set/1 deletes the question set" do
@@ -294,19 +395,11 @@ defmodule ZiStudy.QuestionsTest do
       question1 = question_fixture()
       question2 = question_fixture()
 
-      # Add questions to set using the import functionality
-      json_data = [
-        Processed.Question.to_map(Processed.Question.from_map(question1.data)),
-        Processed.Question.to_map(Processed.Question.from_map(question2.data))
-      ]
-
-      json_string = Jason.encode!(json_data)
-
+      # Add questions to set
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
-      assert {:ok, _} =
-               Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      {:ok, _} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       results = Questions.get_question_set_questions_with_positions(question_set.id)
       assert length(results) == 2
@@ -320,11 +413,7 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
-      json_data = [Processed.Question.to_map(Processed.Question.from_map(question.data))]
-      json_string = Jason.encode!(json_data)
-
-      assert {:ok, _} =
-               Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      {:ok, _} = Questions.add_questions_to_set(question_set, [question], user.id)
 
       # Verify question is in set and get the actual question IDs
       questions_before = Questions.get_question_set_questions_with_positions(question_set.id)
@@ -352,10 +441,7 @@ defmodule ZiStudy.QuestionsTest do
       Questions.update_question_set(target_set, %{owner_id: user.id})
 
       # Add question to source set
-      json_data = [Processed.Question.to_map(Processed.Question.from_map(question.data))]
-      json_string = Jason.encode!(json_data)
-
-      assert {:ok, _} = Questions.import_questions_from_json(json_string, user.id, source_set.id)
+      {:ok, _} = Questions.add_questions_to_set(source_set, [question], user.id)
 
       # Copy to target set
       assert {:ok, _} = Questions.copy_questions_between_sets(source_set.id, target_set.id)
@@ -461,11 +547,9 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
-      # Add initial question via import
+      # Add initial question
       initial_question = question_fixture()
-      json_data = [Processed.Question.to_map(Processed.Question.from_map(initial_question.data))]
-      json_string = Jason.encode!(json_data)
-      Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      {:ok, _} = Questions.add_questions_to_set(question_set, [initial_question], user.id)
 
       # Add more questions using our new function
       question1 = question_fixture()
@@ -977,16 +1061,10 @@ defmodule ZiStudy.QuestionsTest do
       Questions.update_question_set(question_set, %{owner_id: user.id})
 
       # Add question to set
-      json_data = [Processed.Question.to_map(Processed.Question.from_map(question1.data))]
-      json_string = Jason.encode!(json_data)
-      Questions.import_questions_from_json(json_string, user.id, question_set.id)
+      {:ok, _} = Questions.add_questions_to_set(question_set, [question1], user.id)
 
-      # Get the actual question that was imported
-      set_questions = Questions.get_question_set_questions_with_positions(question_set.id)
-      imported_question = List.first(set_questions).question
-
-      # Create answer for the imported question
-      correct_answer_fixture(user1, imported_question, %{is_correct: 1})
+      # Create answer for the question
+      correct_answer_fixture(user1, question1, %{is_correct: 1})
 
       stats = Questions.get_user_question_set_stats(user1.id, question_set.id)
 
@@ -1176,8 +1254,8 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
 
       json_data = [
-        mcq_single_question_data(),
-        true_false_question_data()
+        mcq_single_import_data(),
+        true_false_import_data()
       ]
 
       json_string = Jason.encode!(json_data)
@@ -1191,12 +1269,12 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
 
       json_data = [
-        mcq_single_question_data(),
-        mcq_multi_question_data(),
-        true_false_question_data(),
-        written_question_data(),
-        cloze_question_data(),
-        emq_question_data()
+        mcq_single_import_data(),
+        mcq_multi_import_data(),
+        true_false_import_data(),
+        written_import_data(),
+        cloze_import_data(),
+        emq_import_data()
       ]
 
       json_string = Jason.encode!(json_data)
@@ -1218,8 +1296,9 @@ defmodule ZiStudy.QuestionsTest do
 
       # Mix of valid and invalid questions
       json_data = [
-        mcq_single_question_data(),
+        mcq_single_import_data(),
         %{
+          "temp_id" => "bad_emq",
           "question_type" => "emq",
           "premises" => ["A"],
           "options" => ["1"]
@@ -1229,10 +1308,8 @@ defmodule ZiStudy.QuestionsTest do
 
       json_string = Jason.encode!(json_data)
 
-      # Should fail with transaction rollback error
-      assert {:error, error_message} = Questions.import_questions_from_json(json_string, user.id)
-      assert is_binary(error_message)
-      assert String.contains?(error_message, "instructions is required")
+      # Should fail with invalid question data error
+      assert {:error, :invalid_question_data, _details} = Questions.import_questions_from_json(json_string, user.id)
 
       # Verify no questions were created due to transaction rollback
       initial_count = length(Questions.list_questions())
@@ -1244,7 +1321,7 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
       question_set = question_set_fixture(user)
 
-      json_data = [mcq_single_question_data()]
+      json_data = [mcq_single_import_data()]
       json_string = Jason.encode!(json_data)
 
       assert {:ok, _questions} =
@@ -1275,7 +1352,7 @@ defmodule ZiStudy.QuestionsTest do
       user = user_fixture()
 
       json_data = [
-        mcq_single_question_data(),
+        mcq_single_import_data(),
         # This will fail
         %{invalid: "data"}
       ]
@@ -1291,6 +1368,206 @@ defmodule ZiStudy.QuestionsTest do
       final_count = length(Questions.list_questions())
       assert final_count == initial_count
     end
+
+    test "imports questions with nil user_id (system import)" do
+      json_data = [
+        mcq_single_import_data(),
+        true_false_import_data()
+      ]
+
+      json_string = Jason.encode!(json_data)
+
+      # Test with explicit nil user_id
+      assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil)
+      assert length(questions) == 2
+      assert Enum.all?(questions, &is_struct(&1, Question))
+
+      # Test with default nil user_id (function parameter default)
+      assert {:ok, questions} = Questions.import_questions_from_json(json_string)
+      assert length(questions) == 2
+    end
+
+    test "imports questions to ownerless question set with nil user_id" do
+      # Create ownerless question set
+      ownerless_set = Questions.create_question_set_ownerless(%{title: "System Set", description: "Ownerless set"})
+      assert {:ok, question_set} = ownerless_set
+      assert question_set.owner_id == nil
+
+      json_data = [mcq_single_import_data()]
+      json_string = Jason.encode!(json_data)
+
+      # Should succeed with nil user_id
+      assert {:ok, _questions} =
+               Questions.import_questions_from_json(json_string, nil, question_set.id)
+
+      # Verify question was added to set
+      set_questions = Questions.get_question_set_questions_with_positions(question_set.id)
+      assert length(set_questions) == 1
+    end
+
+    test "fails to import to owned question set with nil user_id" do
+      user = user_fixture()
+      user_owned_set = question_set_fixture(user)
+
+      json_data = [mcq_single_import_data()]
+      json_string = Jason.encode!(json_data)
+
+      # Should fail when trying to add to owned set without user authorization
+      assert {:error, error_message} =
+               Questions.import_questions_from_json(json_string, nil, user_owned_set.id)
+
+      assert String.contains?(error_message, "Cannot add questions to owned question set")
+      assert String.contains?(error_message, "without user authorization")
+
+      # Verify no questions were added to the set
+      set_questions = Questions.get_question_set_questions_with_positions(user_owned_set.id)
+      assert length(set_questions) == 0
+    end
+
+    test "import with nil user_id works without question_set_id" do
+      json_data = [
+        mcq_single_import_data(),
+        written_import_data()
+      ]
+
+      json_string = Jason.encode!(json_data)
+
+      initial_count = length(Questions.list_questions())
+
+      # Should create questions without adding to any set
+      assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil, nil)
+      assert length(questions) == 2
+
+      final_count = length(Questions.list_questions())
+      assert final_count == initial_count + 2
+    end
+
+         test "import_questions_from_json handles import format data correctly" do
+       # Test with import format using fixture
+       import_format_data = [mcq_single_import_data()]
+
+       json_string = Jason.encode!(import_format_data)
+
+       assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil)
+       assert length(questions) == 1
+
+       question = List.first(questions)
+       assert question.type == "mcq_single"
+       assert question.data["correct_index"] == 1  # Should be converted from temp_id to index
+       assert question.data["options"] == ["3", "4", "5", "6"]  # Should be converted to simple strings
+       refute is_nil(question.data["correct_index"])  # Should not be null
+    end
+
+         test "import_questions_from_json fails with processed format data" do
+       # Test with processed format (should fail since we expect import format)
+       processed_format_data = [
+         %{
+           "question_type" => "mcq_single",
+           "question_text" => "What is 2 + 2?",
+           "options" => ["3", "4", "5"],  # This is processed format (strings)
+           "correct_index" => 1,  # This is processed format field
+           "difficulty" => "easy",
+           "explanation" => "Simple addition"
+           # Missing temp_id and import format fields
+         }
+       ]
+
+       json_string = Jason.encode!(processed_format_data)
+
+       # Should fail because it's not in import format
+       assert {:error, :invalid_question_data, _details} =
+         Questions.import_questions_from_json(json_string, nil)
+     end
+
+    test "import_questions_from_json handles EMQ import format correctly" do
+      # Test EMQ with import format using fixture
+      emq_import_data = [emq_import_data()]
+
+      json_string = Jason.encode!(emq_import_data)
+
+      assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil)
+      assert length(questions) == 1
+
+      question = List.first(questions)
+      assert question.type == "emq"
+      assert question.data["premises"] == ["First planet", "Second planet", "Third planet"]  # Converted to strings
+      assert question.data["options"] == ["Mercury", "Venus", "Earth", "Mars"]    # Converted to strings
+      assert question.data["matches"] == [[0, 0], [1, 1], [2, 2]]      # Converted to indices
+     end
+
+     test "end-to-end: create ownerless set with tags and import questions" do
+       # Simulate the user's exact scenario
+       # 1. Create tags
+       tag_names = ["Surgery", "Stage 4", "Stage 5", "Stage 6", "Final Exam", "Endblock Exam", "Moodle"]
+
+       {tag_results, _} =
+         Enum.reduce(tag_names, {[], 0}, fn tag_name, {acc, _} ->
+           {:ok, tag} = Questions.create_tag(%{name: tag_name})
+           {[tag | acc], 0}
+         end)
+
+       tags = Enum.reverse(tag_results)
+
+       # 2. Create ownerless question set with tags
+       {:ok, new_set} =
+         Questions.create_question_set_ownerless(%{
+           title: "Test Surgery Set",
+           description: "A test set with tags and questions",
+           tags: tags
+         })
+
+       # 3. Create JSON with import format data
+       import_questions = [
+         %{
+           "temp_id" => "q1",
+           "question_type" => "mcq_single",
+           "difficulty" => "easy",
+           "question_text" => "What is a scalpel used for?",
+           "options" => [
+             %{"temp_id" => "opt1", "text" => "Cutting"},
+             %{"temp_id" => "opt2", "text" => "Measuring"},
+             %{"temp_id" => "opt3", "text" => "Weighing"}
+           ],
+           "correct_option_temp_id" => "opt1",
+           "explanation" => "A scalpel is a surgical knife"
+         },
+         %{
+           "temp_id" => "q2",
+           "question_type" => "true_false",
+           "difficulty" => "medium",
+           "question_text" => "Surgery requires sterile conditions",
+           "is_correct_true" => true,
+           "explanation" => "Sterile conditions prevent infection"
+         }
+       ]
+
+       json_string = Jason.encode!(import_questions)
+
+       # 4. Import questions with nil user_id and question_set_id
+       {:ok, imported_questions} = Questions.import_questions_from_json(json_string, nil, new_set.id)
+
+       # 5. Verify everything worked correctly
+       assert length(imported_questions) == 2
+
+       # Check questions were properly converted from import format
+       mcq_question = Enum.find(imported_questions, &(&1.type == "mcq_single"))
+       tf_question = Enum.find(imported_questions, &(&1.type == "true_false"))
+
+       assert mcq_question.data["correct_index"] == 0  # Not null, converted from temp_id
+       assert mcq_question.data["options"] == ["Cutting", "Measuring", "Weighing"]  # Converted to strings
+       assert tf_question.data["is_correct_true"] == true
+
+       # Check questions were added to the set
+       actual_questions = Questions.get_question_set_questions_with_positions(new_set.id)
+       assert length(actual_questions) == 2
+
+       # Check tags were added to the set
+       set_with_tags = Questions.get_question_set(new_set.id)
+       tag_names_on_set = Enum.map(set_with_tags.tags, & &1.name)
+       assert "Surgery" in tag_names_on_set
+       assert "Stage 4" in tag_names_on_set
+       assert length(set_with_tags.tags) == 7
+     end
   end
 
   describe "advanced question set operations" do
@@ -1301,20 +1578,10 @@ defmodule ZiStudy.QuestionsTest do
       question2 = question_fixture()
 
       # Add questions to set
-      json_data = [
-        Processed.Question.to_map(Processed.Question.from_map(question1.data)),
-        Processed.Question.to_map(Processed.Question.from_map(question2.data))
-      ]
-
-      json_string = Jason.encode!(json_data)
-      Questions.import_questions_from_json(json_string, user.id, question_set.id)
-
-      # Get the actual questions that were imported
-      set_questions = Questions.get_question_set_questions_with_positions(question_set.id)
-      first_imported_question = List.first(set_questions).question
+      {:ok, _} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       # Answer only one question
-      answer_fixture(user, first_imported_question)
+      answer_fixture(user, question1)
 
       unanswered = Questions.get_unanswered_questions_for_user_in_set(user.id, question_set.id)
 
@@ -1329,22 +1596,12 @@ defmodule ZiStudy.QuestionsTest do
       question2 = question_fixture()
 
       # Add questions to set
-      json_data = [
-        Processed.Question.to_map(Processed.Question.from_map(question1.data)),
-        Processed.Question.to_map(Processed.Question.from_map(question2.data))
-      ]
-
-      json_string = Jason.encode!(json_data)
-      Questions.import_questions_from_json(json_string, user.id, question_set.id)
-
-      # Get the actual question IDs from the set
-      set_questions = Questions.get_question_set_questions_with_positions(question_set.id)
-      [first_q, second_q] = set_questions
+      {:ok, _} = Questions.add_questions_to_set(question_set, [question1, question2], user.id)
 
       # Update positions (swap them)
       position_updates = [
-        %{question_id: first_q.question.id, position: 2},
-        %{question_id: second_q.question.id, position: 1}
+        %{question_id: question1.id, position: 2},
+        %{question_id: question2.id, position: 1}
       ]
 
       assert {:ok, _} =
@@ -1354,8 +1611,8 @@ defmodule ZiStudy.QuestionsTest do
       updated_questions = Questions.get_question_set_questions_with_positions(question_set.id)
       positions_map = Map.new(updated_questions, fn %{question: q, position: p} -> {q.id, p} end)
 
-      assert positions_map[first_q.question.id] == 2
-      assert positions_map[second_q.question.id] == 1
+      assert positions_map[question1.id] == 2
+      assert positions_map[question2.id] == 1
     end
   end
 

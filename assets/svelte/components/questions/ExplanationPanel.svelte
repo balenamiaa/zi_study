@@ -7,7 +7,7 @@
 <div class="mt-3 p-3 bg-base-100 border border-base-300 rounded-lg {userClass}">
     <div class="flex items-start gap-2">
         <svg
-            class="w-4 h-4 text-info mt-1"
+            class="w-4 h-4 text-info shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

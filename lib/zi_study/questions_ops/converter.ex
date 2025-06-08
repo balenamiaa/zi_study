@@ -76,14 +76,20 @@ defmodule ZiStudy.QuestionsOps.Converter do
   end
 
   defp find_index_by_temp_id(collection, temp_id) do
-    Enum.find_index(collection, fn item -> item.temp_id == temp_id end)
+    case Enum.find_index(collection, fn item -> item.temp_id == temp_id end) do
+      nil ->
+        raise ArgumentError, "temp_id '#{temp_id}' not found in collection"
+
+      index ->
+        index
+    end
   end
 
   defp convert_matches(matches, premises, options) do
     Enum.map(matches, fn {premise_temp_id, option_temp_id} ->
       premise_idx = find_index_by_temp_id(premises, premise_temp_id)
       option_idx = find_index_by_temp_id(options, option_temp_id)
-      {premise_idx, option_idx}
+      [premise_idx, option_idx]
     end)
   end
 end
