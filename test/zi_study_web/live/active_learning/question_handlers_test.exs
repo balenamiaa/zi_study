@@ -447,4 +447,168 @@ defmodule ZiStudyWeb.Live.ActiveLearning.QuestionHandlersTest do
       assert not_owned_result.is_owned == false
     end
   end
+
+  describe "streaming and metadata functions" do
+    setup do
+      user = user_fixture()
+
+      question_set =
+        question_set_fixture(user, %{title: "Test Set", description: "Test Description"})
+
+      # Create 15 questions for testing streaming
+      questions =
+        Enum.map(1..15, fn i ->
+          question_fixture(:mcq_single, %{"question_text" => "Question #{i}"})
+        end)
+
+      Questions.add_questions_to_set(question_set, questions)
+
+      # Create some answers for the user
+      answer_fixture(user, Enum.at(questions, 0))
+      answer_fixture(user, Enum.at(questions, 1))
+
+      %{user: user, question_set: question_set, questions: questions}
+    end
+
+    test "get_question_set_metadata/2 returns metadata without questions", %{
+      user: user,
+      question_set: question_set
+    } do
+      metadata = QuestionHandlers.get_question_set_metadata(question_set.id, user.id)
+
+      assert metadata.id == question_set.id
+      assert metadata.title == "Test Set"
+      assert metadata.description == "Test Description"
+      # Should be empty for metadata
+      assert metadata.questions == []
+      # Should be empty for metadata
+      assert metadata.answers == []
+      assert Map.has_key?(metadata, :stats)
+      assert Map.has_key?(metadata, :owner)
+      assert Map.has_key?(metadata, :tags)
+    end
+
+    test "get_initial_questions_chunk/3 returns first chunk with streaming state", %{
+      user: user,
+      question_set: question_set
+    } do
+      {chunk_data, streaming_state} =
+        QuestionHandlers.get_initial_questions_chunk(question_set.id, user.id, 5)
+
+      # Check chunk data
+      assert Map.has_key?(chunk_data, :questions)
+      assert Map.has_key?(chunk_data, :answers)
+      assert length(chunk_data.questions) == 5
+      # Only 2 questions have answers
+      assert length(chunk_data.answers) == 2
+
+      # Check streaming state
+      assert streaming_state.loaded_count == 5
+      assert streaming_state.total_count == 15
+      assert streaming_state.has_more == true
+      assert streaming_state.is_streaming == false
+    end
+
+    test "get_initial_questions_chunk/3 handles empty question set", %{user: user} do
+      empty_set = question_set_fixture(user)
+
+      {chunk_data, streaming_state} =
+        QuestionHandlers.get_initial_questions_chunk(empty_set.id, user.id, 10)
+
+      assert chunk_data.questions == []
+      assert chunk_data.answers == []
+      assert streaming_state.loaded_count == 0
+      assert streaming_state.total_count == 0
+      assert streaming_state.has_more == false
+    end
+
+    test "get_questions_chunk/4 returns subsequent chunks", %{
+      user: user,
+      question_set: question_set
+    } do
+      # Get second chunk (offset 5, size 5)
+      {chunk_data, streaming_state} =
+        QuestionHandlers.get_questions_chunk(question_set.id, user.id, 5, 5)
+
+      assert length(chunk_data.questions) == 5
+      # 5 + 5
+      assert streaming_state.loaded_count == 10
+      assert streaming_state.total_count == 15
+      assert streaming_state.has_more == true
+      # Should continue streaming
+      assert streaming_state.is_streaming == true
+    end
+
+    test "answer_to_dto_minimal/1 returns minimal answer structure" do
+      user = user_fixture()
+      question = question_fixture()
+      answer = answer_fixture(user, question)
+
+      # Convert to the minimal format that would be returned by the database
+      minimal_answer = %{
+        id: answer.id,
+        question_id: answer.question_id,
+        data: answer.data,
+        is_correct: answer.is_correct,
+        user_id: answer.user_id,
+        inserted_at: answer.inserted_at,
+        updated_at: answer.updated_at
+      }
+
+      result = QuestionHandlers.answer_to_dto_minimal(minimal_answer)
+
+      assert result.id == answer.id
+      assert result.question_id == answer.question_id
+      assert result.data == answer.data
+      assert result.is_correct == answer.is_correct
+
+      # Should not have preloaded associations
+      refute Map.has_key?(result, :user)
+      refute Map.has_key?(result, :question)
+    end
+  end
+
+  describe "streaming integration scenarios" do
+    test "complete streaming flow simulates real usage" do
+      user = user_fixture()
+      question_set = question_set_fixture(user)
+
+      # Create 25 questions to test multiple chunks
+      questions = Enum.map(1..25, fn _i -> question_fixture() end)
+      Questions.add_questions_to_set(question_set, questions)
+
+      # Simulate the complete flow
+
+      # 1. Get metadata first (like page load)
+      metadata = QuestionHandlers.get_question_set_metadata(question_set.id, user.id)
+      assert metadata.questions == []
+
+      # 2. Get initial chunk (SSR)
+      {initial_chunk, state1} =
+        QuestionHandlers.get_initial_questions_chunk(question_set.id, user.id, 10)
+
+      assert length(initial_chunk.questions) == 10
+      assert state1.loaded_count == 10
+      assert state1.has_more == true
+
+      # 3. Stream second chunk
+      {chunk2, state2} = QuestionHandlers.get_questions_chunk(question_set.id, user.id, 10, 10)
+      assert length(chunk2.questions) == 10
+      assert state2.loaded_count == 20
+      assert state2.has_more == true
+
+      # 4. Stream final chunk
+      {chunk3, state3} = QuestionHandlers.get_questions_chunk(question_set.id, user.id, 20, 10)
+      # Only 5 remaining
+      assert length(chunk3.questions) == 5
+      assert state3.loaded_count == 25
+      assert state3.has_more == false
+
+      # Verify we got all questions across chunks
+      total_questions =
+        length(initial_chunk.questions) + length(chunk2.questions) + length(chunk3.questions)
+
+      assert total_questions == 25
+    end
+  end
 end

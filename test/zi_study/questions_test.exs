@@ -2583,4 +2583,206 @@ defmodule ZiStudy.QuestionsTest do
       assert dto.owner == %{email: "a@b.com"}
     end
   end
+
+  describe "count_questions_in_set/1" do
+    test "returns correct count for question set with questions" do
+      user = user_fixture()
+      question_set = question_set_fixture(user)
+      question1 = question_fixture()
+      question2 = question_fixture()
+      question3 = question_fixture()
+
+      Questions.add_questions_to_set(question_set, [question1, question2, question3])
+
+      assert Questions.count_questions_in_set(question_set.id) == 3
+    end
+
+    test "returns 0 for empty question set" do
+      user = user_fixture()
+      question_set = question_set_fixture(user)
+
+      assert Questions.count_questions_in_set(question_set.id) == 0
+    end
+
+    test "returns 0 for non-existent question set" do
+      assert Questions.count_questions_in_set(999_999) == 0
+    end
+  end
+
+  describe "get_question_set_questions_chunk/3" do
+    setup do
+      user = user_fixture()
+      question_set = question_set_fixture(user)
+
+      # Create 10 questions for testing pagination
+      questions = Enum.map(1..10, fn _i -> question_fixture() end)
+      Questions.add_questions_to_set(question_set, questions)
+
+      %{question_set: question_set, questions: questions}
+    end
+
+    test "returns first chunk when offset is 0", %{question_set: question_set} do
+      chunk = Questions.get_question_set_questions_chunk(question_set.id, 0, 3)
+
+      assert length(chunk) == 3
+      # Should be ordered by position
+      assert Enum.all?(chunk, fn q -> is_integer(q.id) end)
+    end
+
+    test "returns middle chunk correctly", %{question_set: question_set} do
+      chunk = Questions.get_question_set_questions_chunk(question_set.id, 3, 3)
+
+      assert length(chunk) == 3
+    end
+
+    test "returns remaining questions when chunk size exceeds remaining", %{question_set: question_set} do
+      chunk = Questions.get_question_set_questions_chunk(question_set.id, 8, 5)
+
+      assert length(chunk) == 2  # Only 2 questions left (8-9)
+    end
+
+    test "returns empty list when offset exceeds total questions", %{question_set: question_set} do
+      chunk = Questions.get_question_set_questions_chunk(question_set.id, 20, 5)
+
+      assert chunk == []
+    end
+
+    test "handles default parameters" do
+      user = user_fixture()
+      question_set = question_set_fixture(user)
+
+      chunk = Questions.get_question_set_questions_chunk(question_set.id)
+
+      assert chunk == []  # Empty set, should return empty list
+    end
+  end
+
+  describe "get_user_answers_for_questions_minimal/2" do
+    setup do
+      user = user_fixture()
+      question1 = question_fixture()
+      question2 = question_fixture()
+      question3 = question_fixture()
+
+      # Create answers for question1 and question2, but not question3
+      answer1 = answer_fixture(user, question1)
+      answer2 = answer_fixture(user, question2)
+
+      %{
+        user: user,
+        questions: [question1, question2, question3],
+        answers: [answer1, answer2]
+      }
+    end
+
+    test "returns minimal answer data without preloads", %{user: user, questions: [q1, q2, q3]} do
+      minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, [q1, q2, q3])
+
+      assert length(minimal_answers) == 2  # Only q1 and q2 have answers
+
+      # Check that answers have the minimal required fields
+      first_answer = List.first(minimal_answers)
+      assert Map.has_key?(first_answer, :id)
+      assert Map.has_key?(first_answer, :question_id)
+      assert Map.has_key?(first_answer, :data)
+      assert Map.has_key?(first_answer, :is_correct)
+      assert Map.has_key?(first_answer, :user_id)
+      assert Map.has_key?(first_answer, :inserted_at)
+      assert Map.has_key?(first_answer, :updated_at)
+
+      # Check that it doesn't have preloaded associations
+      refute Map.has_key?(first_answer, :user)
+      refute Map.has_key?(first_answer, :question)
+    end
+
+    test "handles empty question list", %{user: user} do
+      minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, [])
+
+      assert minimal_answers == []
+    end
+
+    test "handles questions with different ID formats", %{user: user, questions: [q1, q2, _q3]} do
+      # Test with Question structs, maps with :id, and raw integers
+      mixed_questions = [
+        q1,                    # Question struct
+        %{id: q2.id},         # Map with :id
+        q1.id                 # Raw integer
+      ]
+
+      minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, mixed_questions)
+
+      # Should find answers for q1 (appears twice) and q2
+      question_ids = Enum.map(minimal_answers, & &1.question_id)
+      assert q1.id in question_ids
+      assert q2.id in question_ids
+    end
+
+    test "filters by user_id correctly", %{questions: [q1, _q2, _q3]} do
+      user1 = user_fixture()
+      user2 = user_fixture()
+
+      # Create answer for user1
+      _answer1 = answer_fixture(user1, q1)
+
+      # user2 should get no answers
+      minimal_answers = Questions.get_user_answers_for_questions_minimal(user2.id, [q1])
+
+      assert minimal_answers == []
+    end
+
+    test "handles invalid question data gracefully", %{user: user} do
+      invalid_questions = [nil, %{}, %{wrong_field: 123}, "invalid"]
+
+      minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, invalid_questions)
+
+      assert minimal_answers == []
+    end
+  end
+
+  describe "EMQ answer format integration" do
+    test "EMQ answers work with array format from frontend" do
+      user = user_fixture()
+      question = question_fixture(:emq)  # Creates EMQ with matches: [[0, 0], [1, 1], [2, 2]]
+
+      # Test the format that frontend now sends (array of arrays)
+      correct_answer = %{"matches" => [[0, 0], [1, 1], [2, 2]]}
+
+      assert {:ok, true} = Questions.check_answer_correctness(question.id, correct_answer)
+
+      # Test incorrect answer in same format
+      incorrect_answer = %{"matches" => [[0, 1], [1, 0], [2, 2]]}
+
+      assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+    end
+
+        test "EMQ upsert_answer works with correct format and is_correct evaluation" do
+      user = user_fixture()
+      question = question_fixture(:emq)
+
+      # Test that check_answer_correctness works, then use in upsert
+      correct_answer = %{"matches" => [[0, 0], [1, 1], [2, 2]]}
+      {:ok, is_correct_true} = Questions.check_answer_correctness(question.id, correct_answer)
+      assert is_correct_true == true
+
+      # Use QuestionHandlers which properly evaluates answers
+      {:ok, answer_dto, _meta} = QuestionHandlers.handle_answer_question(
+        to_string(question.id),
+        correct_answer,
+        user
+      )
+      assert answer_dto.is_correct == 1
+
+      # Test incorrect answer
+      incorrect_answer = %{"matches" => [[0, 1], [1, 0], [2, 2]]}
+      {:ok, is_correct_false} = Questions.check_answer_correctness(question.id, incorrect_answer)
+      assert is_correct_false == false
+
+      {:ok, answer_dto2, _meta} = QuestionHandlers.handle_answer_question(
+        to_string(question.id),
+        incorrect_answer,
+        user
+      )
+      assert answer_dto2.is_correct == 0
+    end
+  end
 end

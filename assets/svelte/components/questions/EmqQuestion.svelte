@@ -1,7 +1,12 @@
 <script>
     import QuestionToolbar from "./QuestionToolbar.svelte";
     import ExplanationPanel from "./ExplanationPanel.svelte";
-    import { setupQuestionEvents, createAnswerResetHandler, createSubmissionHandler, isAnswerValid } from "../../utils/questionUtils.js";
+    import {
+        setupQuestionEvents,
+        createAnswerResetHandler,
+        createSubmissionHandler,
+        isAnswerValid,
+    } from "../../utils/questionUtils.js";
 
     let {
         data,
@@ -52,12 +57,20 @@
         }
     }
 
-    const handleSubmission = createSubmissionHandler(submitAnswer, (loading) => isSubmitting = loading);
+    const handleSubmission = createSubmissionHandler(
+        submitAnswer,
+        (loading) => (isSubmitting = loading),
+    );
 
     function checkAnswer() {
         if (allAnswered && !isSubmitting) {
+            const backendMatches = selectedMatches.map((match) => [
+                match.premise_index,
+                match.option_index,
+            ]);
+
             handleSubmission({
-                matches: selectedMatches,
+                matches: backendMatches,
             });
         }
     }
@@ -70,13 +83,21 @@
         isSubmitting = false;
     }
 
-    const handleAnswerReset = createAnswerResetHandler(data, questionNumber, () => {
-        selectedMatches = [];
-        isSubmitting = false;
-    });
+    const handleAnswerReset = createAnswerResetHandler(
+        data,
+        questionNumber,
+        () => {
+            selectedMatches = [];
+            isSubmitting = false;
+        },
+    );
 
     $effect(() => {
-        return setupQuestionEvents(live, handleAnswerSubmitted, handleAnswerReset);
+        return setupQuestionEvents(
+            live,
+            handleAnswerSubmitted,
+            handleAnswerReset,
+        );
     });
 
     function getSelectedOptionForPremise(premiseIndex) {
@@ -373,10 +394,10 @@
     {/if}
 
     {#if isAnswered}
-        {@const isCorrect = userAnswer?.is_correct === 1}
         {@const correctCount = data.premises.filter((_, i) =>
             isMatchCorrect(i),
         ).length}
+        {@const isCorrect = userAnswer?.is_correct === 1}
 
         <div
             class="p-4 rounded-lg {isCorrect

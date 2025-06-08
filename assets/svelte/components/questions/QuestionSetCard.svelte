@@ -57,11 +57,11 @@
             </div>
 
             {#if questionSet.is_private}
-                <div class="badge badge-secondary badge-sm font-medium">
+                <div class="badge badge-secondary badge-sm font-medium ml-0.5">
                     Private
                 </div>
             {:else}
-                <div class="badge badge-primary badge-sm font-medium">
+                <div class="badge badge-primary badge-sm font-medium ml-0.5">
                     Public
                 </div>
             {/if}
