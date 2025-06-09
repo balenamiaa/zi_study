@@ -359,8 +359,8 @@ defmodule ZiStudy.Questions do
   """
   def import_questions_from_json(json_string, user_id \\ nil, question_set_id \\ nil)
       when is_binary(json_string) and
-           (is_nil(user_id) or is_integer(user_id)) and
-           (is_nil(question_set_id) or is_integer(question_set_id)) do
+             (is_nil(user_id) or is_integer(user_id)) and
+             (is_nil(question_set_id) or is_integer(question_set_id)) do
     with {:ok, raw_list} <- Jason.decode(json_string),
          true <- is_list(raw_list) do
       processed_contents =
@@ -1023,7 +1023,7 @@ defmodule ZiStudy.Questions do
 
 
   ## Returns
-  Tuple {results, next_cursor} where results is a list of maps with:
+  Tuple {results, next_cursor, total_count} where results is a list of maps with:
   - question: Question struct
   - snippet: FTS5 snippet with highlights
   - highlights: Raw highlight data
@@ -1089,6 +1089,18 @@ defmodule ZiStudy.Questions do
     INNER JOIN search_results sr ON q.id = sr.question_id
     """
 
+    # Build count query to get total results
+    count_query = """
+    WITH search_results AS (
+      SELECT DISTINCT question_id
+      FROM questions_fts
+      WHERE questions_fts MATCH ?
+    )
+    SELECT COUNT(DISTINCT q.id)
+    FROM questions q
+    INNER JOIN search_results sr ON q.id = sr.question_id
+    """
+
     {query_sql, params} =
       apply_filters_and_pagination(
         base_query,
@@ -1100,7 +1112,15 @@ defmodule ZiStudy.Questions do
         difficulties
       )
 
-    execute_search_query(query_sql, params, limit)
+    {count_sql, count_params} =
+      apply_count_filters(
+        count_query,
+        [fts_query],
+        question_types,
+        difficulties
+      )
+
+    execute_search_query_with_count(query_sql, params, count_sql, count_params, limit)
   end
 
   defp search_all_questions(cursor, limit, sort_by, question_types, difficulties) do
@@ -1110,6 +1130,12 @@ defmodule ZiStudy.Questions do
       0.0 as rank,
       '' as snippet,
       '' as highlight_data
+    FROM questions q
+    """
+
+    # Build count query to get total results
+    count_query = """
+    SELECT COUNT(DISTINCT q.id)
     FROM questions q
     """
 
@@ -1124,7 +1150,15 @@ defmodule ZiStudy.Questions do
         difficulties
       )
 
-    execute_search_query(query_sql, params, limit)
+    {count_sql, count_params} =
+      apply_count_filters(
+        count_query,
+        [],
+        question_types,
+        difficulties
+      )
+
+    execute_search_query_with_count(query_sql, params, count_sql, count_params, limit)
   end
 
   defp build_safe_fts_query(query, search_scope, case_sensitive) do
@@ -1173,10 +1207,15 @@ defmodule ZiStudy.Questions do
     conditions = []
     params = base_params
 
+    # Check if this is an FTS search query (has search_results table)
+    has_search_results = String.contains?(base_query, "search_results")
+
     # Add filters
     {conditions, params} = add_question_type_filter(conditions, params, question_types)
     {conditions, params} = add_difficulty_filter(conditions, params, difficulties)
-    {conditions, params} = add_cursor_filter(conditions, params, cursor, sort_by)
+
+    {conditions, params} =
+      add_cursor_filter(conditions, params, cursor, sort_by, has_search_results)
 
     # Build WHERE clause
     where_clause =
@@ -1190,7 +1229,7 @@ defmodule ZiStudy.Questions do
     order_clause =
       case sort_by do
         :relevance ->
-          if String.contains?(base_query, "search_results") do
+          if has_search_results do
             "ORDER BY sr.rank DESC, q.id"
           else
             # No relevance ranking for search_all
@@ -1204,7 +1243,7 @@ defmodule ZiStudy.Questions do
           "ORDER BY q.inserted_at ASC, q.id"
 
         _ ->
-          if String.contains?(base_query, "search_results") do
+          if has_search_results do
             "ORDER BY sr.rank DESC, q.id"
           else
             "ORDER BY q.id"
@@ -1238,13 +1277,19 @@ defmodule ZiStudy.Questions do
     {[condition | conditions], params ++ difficulties}
   end
 
-  defp add_cursor_filter(conditions, params, nil, _sort_by), do: {conditions, params}
+  defp add_cursor_filter(conditions, params, nil, _sort_by, _has_search_results),
+    do: {conditions, params}
 
-  defp add_cursor_filter(conditions, params, cursor, sort_by) do
+  defp add_cursor_filter(conditions, params, cursor, sort_by, has_search_results) do
     case sort_by do
       :relevance ->
-        condition = "(sr.rank < ? OR (sr.rank = ? AND q.id > ?))"
-        {[condition | conditions], params ++ [cursor, cursor, cursor]}
+        if has_search_results do
+          condition = "(sr.rank < ? OR (sr.rank = ? AND q.id > ?))"
+          {[condition | conditions], params ++ [cursor, cursor, cursor]}
+        else
+          condition = "q.id > ?"
+          {[condition | conditions], params ++ [cursor]}
+        end
 
       :newest ->
         condition = "(q.inserted_at < ? OR (q.inserted_at = ? AND q.id > ?))"
@@ -1259,11 +1304,45 @@ defmodule ZiStudy.Questions do
     end
   end
 
-  defp execute_search_query(query_sql, params, limit) do
+  defp apply_count_filters(base_query, base_params, question_types, difficulties) do
+    # Start building WHERE conditions
+    conditions = []
+    params = base_params
+
+    # Add filters (no cursor for count queries)
+    {conditions, params} = add_question_type_filter(conditions, params, question_types)
+    {conditions, params} = add_difficulty_filter(conditions, params, difficulties)
+
+    # Build WHERE clause
+    where_clause =
+      if Enum.empty?(conditions) do
+        ""
+      else
+        "WHERE " <> Enum.join(conditions, " AND ")
+      end
+
+    # Combine query parts
+    full_query = """
+    #{base_query}
+    #{where_clause}
+    """
+
+    {full_query, params}
+  end
+
+  defp execute_search_query_with_count(query_sql, params, count_sql, count_params, limit) do
     try do
+      # Execute both queries
       results = Repo.query!(query_sql, params)
+      count_result = Repo.query!(count_sql, count_params)
 
       rows = results.rows
+
+      total_count =
+        case count_result.rows do
+          [[count]] -> count
+          _ -> 0
+        end
 
       {results_to_return, has_more} =
         if length(rows) > limit do
@@ -1314,18 +1393,18 @@ defmodule ZiStudy.Questions do
 
           case last_result do
             %{rank: rank} when rank != 0.0 -> rank
-            %{question: %{inserted_at: inserted_at}} -> inserted_at
+            %{question: %{id: id}} -> id
             _ -> nil
           end
         else
           nil
         end
 
-      {search_results, next_cursor}
+      {search_results, next_cursor, total_count}
     rescue
       e ->
         Logger.error("Search query failed: #{inspect(e)}")
-        {[], nil}
+        {[], nil, 0}
     end
   end
 
@@ -1910,14 +1989,15 @@ defmodule ZiStudy.Questions do
       |> offset(^offset)
       |> Repo.all()
 
-    {questions, %{
-      page: page,
-      page_size: page_size,
-      total_pages: total_pages,
-      total_count: total_count,
-      has_next: page < total_pages,
-      has_prev: page > 1
-    }}
+    {questions,
+     %{
+       page: page,
+       page_size: page_size,
+       total_pages: total_pages,
+       total_count: total_count,
+       has_next: page < total_pages,
+       has_prev: page > 1
+     }}
   end
 
   defp add_search_filter(query, _search_pattern, ""), do: query
@@ -1926,13 +2006,13 @@ defmodule ZiStudy.Questions do
     from q in query,
       where:
         fragment("LOWER(?) LIKE ?", q.data["question_text"], ^search_pattern) or
-        fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
+          fragment("LOWER(?) LIKE ?", q.data["instructions"], ^search_pattern)
   end
 
   defp add_difficulty_filter(query, [min_diff, max_diff]) do
     from q in query,
       where:
         fragment("CAST(? AS INTEGER)", q.data["difficulty"]) >= ^min_diff and
-        fragment("CAST(? AS INTEGER)", q.data["difficulty"]) <= ^max_diff
+          fragment("CAST(? AS INTEGER)", q.data["difficulty"]) <= ^max_diff
   end
 end

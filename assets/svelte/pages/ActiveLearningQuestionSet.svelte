@@ -12,23 +12,23 @@
     import TagsManagementModal from "../components/questions/TagsManagementModal.svelte";
     import TextInput from "../components/TextInput.svelte";
     import { onMount, onDestroy } from "svelte";
-    
+
     // New props structure - small metadata + initial data
-    let { 
-        live, 
-        questionSetMeta, 
-        initialQuestions, 
-        initialAnswers, 
-        streamingState, 
-        currentUser, 
-        userQuestionSets 
+    let {
+        live,
+        questionSetMeta,
+        initialQuestions,
+        initialAnswers,
+        streamingState,
+        currentUser,
+        userQuestionSets,
     } = $props();
 
     // Local state for questions and answers (will be updated via events)
     let allQuestions = $state([...initialQuestions]);
     let allAnswers = $state([...initialAnswers]);
-    let currentStreamingState = $state({...streamingState});
-    
+    let currentStreamingState = $state({ ...streamingState });
+
     // Component state
     let searchQuery = $state("");
     let showFilters = $state(false);
@@ -52,9 +52,9 @@
     let questionSet = $derived({
         ...questionSetMeta,
         questions: allQuestions,
-        answers: allAnswers
+        answers: allAnswers,
     });
-    
+
     // Filter questions from the local state
     let filteredQuestions = $derived.by(() => {
         if (!allQuestions || allQuestions.length === 0) return [];
@@ -83,43 +83,63 @@
         if (!live) return;
 
         // Start streaming after component mounts
-        if (currentStreamingState.has_more && !currentStreamingState.is_streaming) {
+        if (
+            currentStreamingState.has_more &&
+            !currentStreamingState.is_streaming
+        ) {
             live.pushEvent("start_streaming", {});
         }
 
         // Handle streaming events
-        const handleQuestionsChunk = live.handleEvent("questions_chunk_received", (event) => {
-            // Append new questions and answers to local state
-            allQuestions = [...allQuestions, ...event.questions];
-            allAnswers = [...allAnswers, ...event.answers];
-            currentStreamingState = event.streaming_state;
-        });
+        const handleQuestionsChunk = live.handleEvent(
+            "questions_chunk_received",
+            (event) => {
+                // Append new questions and answers to local state
+                allQuestions = [...allQuestions, ...event.questions];
+                allAnswers = [...allAnswers, ...event.answers];
+                currentStreamingState = event.streaming_state;
+            },
+        );
 
-        const handleAnswerUpdated = live.handleEvent("answer_updated", (event) => {
-            const existingIndex = allAnswers.findIndex(a => a.question_id === event.answer.question_id);
-            if (existingIndex >= 0) {
-                allAnswers[existingIndex] = event.answer;
-            } else {
-                allAnswers = [...allAnswers, event.answer];
-            }
-            allAnswers = [...allAnswers];
-        });
+        const handleAnswerUpdated = live.handleEvent(
+            "answer_updated",
+            (event) => {
+                const existingIndex = allAnswers.findIndex(
+                    (a) => a.question_id === event.answer.question_id,
+                );
+                if (existingIndex >= 0) {
+                    allAnswers[existingIndex] = event.answer;
+                } else {
+                    allAnswers = [...allAnswers, event.answer];
+                }
+                allAnswers = [...allAnswers];
+            },
+        );
 
         const handleAnswerReset = live.handleEvent("answer_reset", (event) => {
-            allAnswers = allAnswers.filter(a => a.question_id !== event.question_id);
+            allAnswers = allAnswers.filter(
+                (a) => a.question_id !== event.question_id,
+            );
         });
 
-        const handleMetaUpdated = live.handleEvent("question_set_meta_updated", (event) => {
-            // Update metadata in place (this triggers questionSet reactivity)
-            questionSetMeta[event.field] = event.value;
-        });
+        const handleMetaUpdated = live.handleEvent(
+            "question_set_meta_updated",
+            (event) => {
+                // Update metadata in place (this triggers questionSet reactivity)
+                questionSetMeta[event.field] = event.value;
+            },
+        );
 
         // Set up intersection observer for additional loading
         if (loadingTrigger) {
             intersectionObserver = new IntersectionObserver(
                 (entries) => {
                     entries.forEach((entry) => {
-                        if (entry.isIntersecting && currentStreamingState?.has_more && !currentStreamingState?.is_streaming) {
+                        if (
+                            entry.isIntersecting &&
+                            currentStreamingState?.has_more &&
+                            !currentStreamingState?.is_streaming
+                        ) {
                             live.pushEvent("request_more_questions", {});
                         }
                     });
@@ -127,10 +147,10 @@
                 {
                     root: questionsContainer,
                     rootMargin: "200px",
-                    threshold: 0.1
-                }
+                    threshold: 0.1,
+                },
             );
-            
+
             intersectionObserver.observe(loadingTrigger);
         }
 
@@ -149,7 +169,11 @@
     });
 
     function loadMoreQuestions() {
-        if (live && currentStreamingState?.has_more && !currentStreamingState?.is_streaming) {
+        if (
+            live &&
+            currentStreamingState?.has_more &&
+            !currentStreamingState?.is_streaming
+        ) {
             live.pushEvent("request_more_questions", {});
         }
     }
@@ -158,7 +182,7 @@
         currentQuestionIndex = index;
         scrollToQuestion(index);
     }
-    
+
     function scrollToQuestion(index) {
         if (questionsContainer && filteredQuestions[index]) {
             const questionsWrapper = questionsContainer.children[0];
@@ -514,9 +538,13 @@
                     </button>
 
                     <div class="text-sm text-base-content/70 whitespace-nowrap">
-                        {filteredQuestions.length} of {currentStreamingState?.total_count || questionSet?.questions?.length || 0} questions
+                        {filteredQuestions.length} of {currentStreamingState?.total_count ||
+                            questionSet?.questions?.length ||
+                            0} questions
                         {#if currentStreamingState?.loaded_count && currentStreamingState.loaded_count < currentStreamingState.total_count}
-                            <span class="text-primary">({currentStreamingState.loaded_count} loaded)</span>
+                            <span class="text-primary"
+                                >({currentStreamingState.loaded_count} loaded)</span
+                            >
                         {/if}
                     </div>
                 </div>
@@ -592,35 +620,42 @@
                         />
                     </div>
                 {/each}
-                
+
                 <!-- Loading trigger element for intersection observer -->
                 {#if currentStreamingState?.has_more}
                     <div bind:this={loadingTrigger} class="w-full py-8">
                         {#if currentStreamingState?.is_streaming}
                             <div class="text-center">
-                                <div class="loading loading-spinner loading-lg text-primary"></div>
-                                <p class="text-base-content/60 mt-4">Streaming in progress...</p>
+                                <div
+                                    class="loading loading-spinner loading-lg text-primary"
+                                ></div>
+                                <p class="text-base-content/60 mt-4">
+                                    Streaming in progress...
+                                </p>
                             </div>
                         {:else}
                             <div class="text-center">
-                                <button 
-                                    class="btn btn-outline btn-lg gap-2" 
+                                <button
+                                    class="btn btn-outline btn-lg gap-2"
                                     onclick={loadMoreQuestions}
                                 >
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                                    <svg
+                                        class="w-5 h-5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                                        ></path>
                                     </svg>
                                     Load More Questions
                                 </button>
                             </div>
                         {/if}
-                    </div>
-                {:else if questionSet?.questions && questionSet.questions.length > 0}
-                    <div class="text-center py-8">
-                        <div class="badge badge-success gap-2">
-                            <CheckIcon class="h-4 w-4" />
-                            All {currentStreamingState?.total_count || questionSet.questions.length} questions loaded
-                        </div>
                     </div>
                 {/if}
             {/if}

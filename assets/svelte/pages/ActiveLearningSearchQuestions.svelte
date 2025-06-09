@@ -23,6 +23,7 @@
         isSearching = false,
         cursor = null,
         hasMore = false,
+        totalCount = 0,
         selectedQuestionIds: selectedQuestionIdsArray = [],
         bulkSelectMode = false,
         userQuestionSets = null,
@@ -132,21 +133,34 @@
 
         observer = new IntersectionObserver(
             (entries) => {
-                if (entries[0].isIntersecting && hasMore && !isSearching) {
+                if (
+                    entries[0].isIntersecting &&
+                    hasMore &&
+                    !isSearching &&
+                    searchQuery.trim()
+                ) {
                     loadMore();
                 }
             },
             { threshold: 0.1 },
         );
-
-        if (loadMoreTrigger) {
-            observer.observe(loadMoreTrigger);
-        }
     });
 
     onDestroy(() => {
-        if (observer && loadMoreTrigger) {
-            observer.unobserve(loadMoreTrigger);
+        if (observer) {
+            observer.disconnect();
+        }
+    });
+
+    $effect(() => {
+        if (observer) {
+            // Disconnect from all previous observations
+            observer.disconnect();
+
+            // Observe the new trigger if it exists
+            if (loadMoreTrigger) {
+                observer.observe(loadMoreTrigger);
+            }
         }
     });
 
@@ -275,52 +289,56 @@
                     variant="bordered"
                     icon={SearchIcon}
                     type="search"
-                />
-
-                <!-- Filter/Settings Buttons -->
-                <div
-                    class="absolute top-1/2 -translate-y-1/2 right-4 flex gap-2"
                 >
-                    <div class="tooltip tooltip-bottom" data-tip="Filters">
-                        <button
-                            class="btn btn-circle btn-ghost relative {showFilters
-                                ? 'btn-active'
-                                : ''}"
-                            onclick={() => (showFilters = !showFilters)}
-                            aria-label="Toggle filters"
-                        >
-                            <FilterIcon class="h-5 w-5" />
-                            {#if getActiveFiltersCount() > 0}
-                                <span
-                                    class="absolute -top-1 -right-1 badge badge-primary badge-xs"
+                    {#snippet children()}
+                        <!-- Filter/Settings Buttons -->
+                        <div class="flex gap-2">
+                            <div
+                                class="tooltip tooltip-bottom"
+                                data-tip="Filters"
+                            >
+                                <button
+                                    class="btn btn-circle btn-ghost relative {showFilters
+                                        ? 'btn-active'
+                                        : ''}"
+                                    onclick={() => (showFilters = !showFilters)}
+                                    aria-label="Toggle filters"
                                 >
-                                    {getActiveFiltersCount()}
-                                </span>
-                            {/if}
-                        </button>
-                    </div>
-                    <div
-                        class="tooltip tooltip-bottom"
-                        data-tip="Search Settings"
-                    >
-                        <button
-                            class="btn btn-circle btn-ghost {showSettings
-                                ? 'btn-active'
-                                : ''}"
-                            onclick={() => (showSettings = !showSettings)}
-                            aria-label="Toggle search settings"
-                        >
-                            <SettingsIcon class="h-5 w-5" />
-                            {#if getActiveSettingsCount() > 0}
-                                <span
-                                    class="absolute -top-1 -right-1 badge badge-primary badge-xs"
+                                    <FilterIcon class="h-5 w-5" />
+                                    {#if getActiveFiltersCount() > 0}
+                                        <span
+                                            class="absolute -top-1 -right-1 badge badge-primary badge-xs"
+                                        >
+                                            {getActiveFiltersCount()}
+                                        </span>
+                                    {/if}
+                                </button>
+                            </div>
+                            <div
+                                class="tooltip tooltip-bottom"
+                                data-tip="Search Settings"
+                            >
+                                <button
+                                    class="btn btn-circle btn-ghost {showSettings
+                                        ? 'btn-active'
+                                        : ''}"
+                                    onclick={() =>
+                                        (showSettings = !showSettings)}
+                                    aria-label="Toggle search settings"
                                 >
-                                    {getActiveSettingsCount()}
-                                </span>
-                            {/if}
-                        </button>
-                    </div>
-                </div>
+                                    <SettingsIcon class="h-5 w-5" />
+                                    {#if getActiveSettingsCount() > 0}
+                                        <span
+                                            class="absolute -top-1 -right-1 badge badge-primary badge-xs"
+                                        >
+                                            {getActiveSettingsCount()}
+                                        </span>
+                                    {/if}
+                                </button>
+                            </div>
+                        </div>
+                    {/snippet}
+                </TextInput>
             </div>
         </div>
 
@@ -568,10 +586,12 @@
                 </div>
             {:else}
                 <div class="text-sm text-base-content/60 mb-4">
-                    Found {deduplicatedResults.length} unique question{deduplicatedResults.length ===
-                    1
+                    Found {totalCount} unique question{totalCount === 1
                         ? ""
                         : "s"}
+                    {#if deduplicatedResults.length < totalCount}
+                        (showing {deduplicatedResults.length})
+                    {/if}
                 </div>
 
                 {#each deduplicatedResults as result, index (`${result.question.id}-${index}`)}
@@ -628,7 +648,7 @@
                     </div>
                 {/each}
 
-                <!-- Load More Trigger -->
+                <!-- Load More Trigger (Infinite Scroll) -->
                 <div
                     bind:this={loadMoreTrigger}
                     class="h-20 flex items-center justify-center"
@@ -638,9 +658,9 @@
                             class="loading loading-spinner loading-md text-primary"
                         ></div>
                     {:else if hasMore}
-                        <Button variant="outline" onclick={loadMore}>
-                            Load More
-                        </Button>
+                        <div class="text-sm text-base-content/50">
+                            Loading more...
+                        </div>
                     {:else if deduplicatedResults.length > 0}
                         <p class="text-sm text-base-content/50">
                             End of results

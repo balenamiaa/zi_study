@@ -17,6 +17,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
             isSearching: @is_searching,
             cursor: @cursor,
             hasMore: @has_more,
+            totalCount: @total_count,
             selectedQuestionIds: MapSet.to_list(@selected_question_ids),
             bulkSelectMode: @bulk_select_mode,
             userQuestionSets: @user_question_sets,
@@ -47,6 +48,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
      |> assign(:is_searching, false)
      |> assign(:cursor, nil)
      |> assign(:has_more, false)
+     |> assign(:total_count, 0)
      |> assign(:selected_question_ids, MapSet.new())
      |> assign(:bulk_select_mode, false)
      |> assign(:user_question_sets, nil)}
@@ -58,7 +60,8 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
        socket
        |> assign(:search_results, [])
        |> assign(:cursor, nil)
-       |> assign(:has_more, false)}
+       |> assign(:has_more, false)
+       |> assign(:total_count, 0)}
     else
       search_config = parse_search_config(config)
 
@@ -343,7 +346,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
     ]
 
     case Questions.search_questions_advanced(query, opts) do
-      {results, next_cursor} ->
+      {results, next_cursor, total_count} ->
         # Get user answers for all questions
         questions = Enum.map(results, & &1.question)
         user_answers = Questions.get_user_answers_for_questions(current_user.id, questions)
@@ -378,6 +381,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.SearchQuestions do
         |> assign(:search_results, new_results)
         |> assign(:cursor, next_cursor)
         |> assign(:has_more, next_cursor != nil)
+        |> assign(:total_count, total_count)
         |> assign(:is_searching, false)
     end
   rescue

@@ -87,9 +87,10 @@ defmodule ZiStudy.QuestionsTest do
       tag1 = tag_fixture(%{name: "Surgery"})
       tag2 = tag_fixture(%{name: "Stage 4"})
 
-      valid_attrs = Map.merge(valid_question_set_attributes(), %{
-        tags: [tag1, tag2]
-      })
+      valid_attrs =
+        Map.merge(valid_question_set_attributes(), %{
+          tags: [tag1, tag2]
+        })
 
       assert {:ok, %QuestionSet{} = question_set} =
                Questions.create_question_set_ownerless(valid_attrs)
@@ -189,7 +190,7 @@ defmodule ZiStudy.QuestionsTest do
       assert length(reloaded_set.tags) == 2
     end
 
-        test "update_question_set/2 without tags doesn't affect existing tags" do
+    test "update_question_set/2 without tags doesn't affect existing tags" do
       question_set = question_set_fixture()
       _tag1 = tag_fixture(%{name: "Existing"})
 
@@ -1309,7 +1310,8 @@ defmodule ZiStudy.QuestionsTest do
       json_string = Jason.encode!(json_data)
 
       # Should fail with invalid question data error
-      assert {:error, :invalid_question_data, _details} = Questions.import_questions_from_json(json_string, user.id)
+      assert {:error, :invalid_question_data, _details} =
+               Questions.import_questions_from_json(json_string, user.id)
 
       # Verify no questions were created due to transaction rollback
       initial_count = length(Questions.list_questions())
@@ -1389,7 +1391,12 @@ defmodule ZiStudy.QuestionsTest do
 
     test "imports questions to ownerless question set with nil user_id" do
       # Create ownerless question set
-      ownerless_set = Questions.create_question_set_ownerless(%{title: "System Set", description: "Ownerless set"})
+      ownerless_set =
+        Questions.create_question_set_ownerless(%{
+          title: "System Set",
+          description: "Ownerless set"
+        })
+
       assert {:ok, question_set} = ownerless_set
       assert question_set.owner_id == nil
 
@@ -1442,42 +1449,47 @@ defmodule ZiStudy.QuestionsTest do
       assert final_count == initial_count + 2
     end
 
-         test "import_questions_from_json handles import format data correctly" do
-       # Test with import format using fixture
-       import_format_data = [mcq_single_import_data()]
+    test "import_questions_from_json handles import format data correctly" do
+      # Test with import format using fixture
+      import_format_data = [mcq_single_import_data()]
 
-       json_string = Jason.encode!(import_format_data)
+      json_string = Jason.encode!(import_format_data)
 
-       assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil)
-       assert length(questions) == 1
+      assert {:ok, questions} = Questions.import_questions_from_json(json_string, nil)
+      assert length(questions) == 1
 
-       question = List.first(questions)
-       assert question.type == "mcq_single"
-       assert question.data["correct_index"] == 1  # Should be converted from temp_id to index
-       assert question.data["options"] == ["3", "4", "5", "6"]  # Should be converted to simple strings
-       refute is_nil(question.data["correct_index"])  # Should not be null
+      question = List.first(questions)
+      assert question.type == "mcq_single"
+      # Should be converted from temp_id to index
+      assert question.data["correct_index"] == 1
+      # Should be converted to simple strings
+      assert question.data["options"] == ["3", "4", "5", "6"]
+      # Should not be null
+      refute is_nil(question.data["correct_index"])
     end
 
-         test "import_questions_from_json fails with processed format data" do
-       # Test with processed format (should fail since we expect import format)
-       processed_format_data = [
-         %{
-           "question_type" => "mcq_single",
-           "question_text" => "What is 2 + 2?",
-           "options" => ["3", "4", "5"],  # This is processed format (strings)
-           "correct_index" => 1,  # This is processed format field
-           "difficulty" => "easy",
-           "explanation" => "Simple addition"
-           # Missing temp_id and import format fields
-         }
-       ]
+    test "import_questions_from_json fails with processed format data" do
+      # Test with processed format (should fail since we expect import format)
+      processed_format_data = [
+        %{
+          "question_type" => "mcq_single",
+          "question_text" => "What is 2 + 2?",
+          # This is processed format (strings)
+          "options" => ["3", "4", "5"],
+          # This is processed format field
+          "correct_index" => 1,
+          "difficulty" => "easy",
+          "explanation" => "Simple addition"
+          # Missing temp_id and import format fields
+        }
+      ]
 
-       json_string = Jason.encode!(processed_format_data)
+      json_string = Jason.encode!(processed_format_data)
 
-       # Should fail because it's not in import format
-       assert {:error, :invalid_question_data, _details} =
-         Questions.import_questions_from_json(json_string, nil)
-     end
+      # Should fail because it's not in import format
+      assert {:error, :invalid_question_data, _details} =
+               Questions.import_questions_from_json(json_string, nil)
+    end
 
     test "import_questions_from_json handles EMQ import format correctly" do
       # Test EMQ with import format using fixture
@@ -1490,84 +1502,98 @@ defmodule ZiStudy.QuestionsTest do
 
       question = List.first(questions)
       assert question.type == "emq"
-      assert question.data["premises"] == ["First planet", "Second planet", "Third planet"]  # Converted to strings
-      assert question.data["options"] == ["Mercury", "Venus", "Earth", "Mars"]    # Converted to strings
-      assert question.data["matches"] == [[0, 0], [1, 1], [2, 2]]      # Converted to indices
-     end
+      # Converted to strings
+      assert question.data["premises"] == ["First planet", "Second planet", "Third planet"]
+      # Converted to strings
+      assert question.data["options"] == ["Mercury", "Venus", "Earth", "Mars"]
+      # Converted to indices
+      assert question.data["matches"] == [[0, 0], [1, 1], [2, 2]]
+    end
 
-     test "end-to-end: create ownerless set with tags and import questions" do
-       # Simulate the user's exact scenario
-       # 1. Create tags
-       tag_names = ["Surgery", "Stage 4", "Stage 5", "Stage 6", "Final Exam", "Endblock Exam", "Moodle"]
+    test "end-to-end: create ownerless set with tags and import questions" do
+      # Simulate the user's exact scenario
+      # 1. Create tags
+      tag_names = [
+        "Surgery",
+        "Stage 4",
+        "Stage 5",
+        "Stage 6",
+        "Final Exam",
+        "Endblock Exam",
+        "Moodle"
+      ]
 
-       {tag_results, _} =
-         Enum.reduce(tag_names, {[], 0}, fn tag_name, {acc, _} ->
-           {:ok, tag} = Questions.create_tag(%{name: tag_name})
-           {[tag | acc], 0}
-         end)
+      {tag_results, _} =
+        Enum.reduce(tag_names, {[], 0}, fn tag_name, {acc, _} ->
+          {:ok, tag} = Questions.create_tag(%{name: tag_name})
+          {[tag | acc], 0}
+        end)
 
-       tags = Enum.reverse(tag_results)
+      tags = Enum.reverse(tag_results)
 
-       # 2. Create ownerless question set with tags
-       {:ok, new_set} =
-         Questions.create_question_set_ownerless(%{
-           title: "Test Surgery Set",
-           description: "A test set with tags and questions",
-           tags: tags
-         })
+      # 2. Create ownerless question set with tags
+      {:ok, new_set} =
+        Questions.create_question_set_ownerless(%{
+          title: "Test Surgery Set",
+          description: "A test set with tags and questions",
+          tags: tags
+        })
 
-       # 3. Create JSON with import format data
-       import_questions = [
-         %{
-           "temp_id" => "q1",
-           "question_type" => "mcq_single",
-           "difficulty" => "easy",
-           "question_text" => "What is a scalpel used for?",
-           "options" => [
-             %{"temp_id" => "opt1", "text" => "Cutting"},
-             %{"temp_id" => "opt2", "text" => "Measuring"},
-             %{"temp_id" => "opt3", "text" => "Weighing"}
-           ],
-           "correct_option_temp_id" => "opt1",
-           "explanation" => "A scalpel is a surgical knife"
-         },
-         %{
-           "temp_id" => "q2",
-           "question_type" => "true_false",
-           "difficulty" => "medium",
-           "question_text" => "Surgery requires sterile conditions",
-           "is_correct_true" => true,
-           "explanation" => "Sterile conditions prevent infection"
-         }
-       ]
+      # 3. Create JSON with import format data
+      import_questions = [
+        %{
+          "temp_id" => "q1",
+          "question_type" => "mcq_single",
+          "difficulty" => "easy",
+          "question_text" => "What is a scalpel used for?",
+          "options" => [
+            %{"temp_id" => "opt1", "text" => "Cutting"},
+            %{"temp_id" => "opt2", "text" => "Measuring"},
+            %{"temp_id" => "opt3", "text" => "Weighing"}
+          ],
+          "correct_option_temp_id" => "opt1",
+          "explanation" => "A scalpel is a surgical knife"
+        },
+        %{
+          "temp_id" => "q2",
+          "question_type" => "true_false",
+          "difficulty" => "medium",
+          "question_text" => "Surgery requires sterile conditions",
+          "is_correct_true" => true,
+          "explanation" => "Sterile conditions prevent infection"
+        }
+      ]
 
-       json_string = Jason.encode!(import_questions)
+      json_string = Jason.encode!(import_questions)
 
-       # 4. Import questions with nil user_id and question_set_id
-       {:ok, imported_questions} = Questions.import_questions_from_json(json_string, nil, new_set.id)
+      # 4. Import questions with nil user_id and question_set_id
+      {:ok, imported_questions} =
+        Questions.import_questions_from_json(json_string, nil, new_set.id)
 
-       # 5. Verify everything worked correctly
-       assert length(imported_questions) == 2
+      # 5. Verify everything worked correctly
+      assert length(imported_questions) == 2
 
-       # Check questions were properly converted from import format
-       mcq_question = Enum.find(imported_questions, &(&1.type == "mcq_single"))
-       tf_question = Enum.find(imported_questions, &(&1.type == "true_false"))
+      # Check questions were properly converted from import format
+      mcq_question = Enum.find(imported_questions, &(&1.type == "mcq_single"))
+      tf_question = Enum.find(imported_questions, &(&1.type == "true_false"))
 
-       assert mcq_question.data["correct_index"] == 0  # Not null, converted from temp_id
-       assert mcq_question.data["options"] == ["Cutting", "Measuring", "Weighing"]  # Converted to strings
-       assert tf_question.data["is_correct_true"] == true
+      # Not null, converted from temp_id
+      assert mcq_question.data["correct_index"] == 0
+      # Converted to strings
+      assert mcq_question.data["options"] == ["Cutting", "Measuring", "Weighing"]
+      assert tf_question.data["is_correct_true"] == true
 
-       # Check questions were added to the set
-       actual_questions = Questions.get_question_set_questions_with_positions(new_set.id)
-       assert length(actual_questions) == 2
+      # Check questions were added to the set
+      actual_questions = Questions.get_question_set_questions_with_positions(new_set.id)
+      assert length(actual_questions) == 2
 
-       # Check tags were added to the set
-       set_with_tags = Questions.get_question_set(new_set.id)
-       tag_names_on_set = Enum.map(set_with_tags.tags, & &1.name)
-       assert "Surgery" in tag_names_on_set
-       assert "Stage 4" in tag_names_on_set
-       assert length(set_with_tags.tags) == 7
-     end
+      # Check tags were added to the set
+      set_with_tags = Questions.get_question_set(new_set.id)
+      tag_names_on_set = Enum.map(set_with_tags.tags, & &1.name)
+      assert "Surgery" in tag_names_on_set
+      assert "Stage 4" in tag_names_on_set
+      assert length(set_with_tags.tags) == 7
+    end
   end
 
   describe "advanced question set operations" do
@@ -2326,19 +2352,22 @@ defmodule ZiStudy.QuestionsTest do
 
     test "search_questions_advanced/2 returns relevant results and highlights", %{q1: q1, q2: _q2} do
       # We're using a direct query to avoid quoting issues in the test
-      {results, next_cursor} = Questions.search_questions_advanced("2", limit: 10)
+      {results, next_cursor, total_count} = Questions.search_questions_advanced("2", limit: 10)
       assert Enum.any?(results, fn r -> r.question.id == q1.id end)
       assert is_nil(next_cursor) or is_integer(next_cursor)
+      assert is_integer(total_count)
       assert Enum.all?(results, fn r -> is_map(r.highlights) end)
     end
 
     test "search_questions_advanced/2 supports difficulty filters", %{q2: q2} do
-      {results, _} = Questions.search_questions_advanced("*", difficulties: ["medium"], limit: 10)
+      {results, _, _} =
+        Questions.search_questions_advanced("*", difficulties: ["medium"], limit: 10)
+
       assert Enum.any?(results, fn r -> r.question.id == q2.id end)
     end
 
     test "search_questions_advanced/2 supports type filters", %{q1: q1} do
-      {results, _} =
+      {results, _, _} =
         Questions.search_questions_advanced("*", question_types: ["mcq_single"], limit: 10)
 
       assert Enum.any?(results, fn r -> r.question.id == q1.id end)
@@ -2391,14 +2420,14 @@ defmodule ZiStudy.QuestionsTest do
 
     test "search_questions_advanced/2 handles special characters gracefully", %{q1: q1, q2: q2} do
       # Test query that used to cause errors
-      assert {:ok, {results, _}} =
+      assert {:ok, {results, _, _}} =
                Code.eval_string("ZiStudy.Questions.search_questions_advanced(\"2+2\", limit: 10)")
                |> then(fn {res, _} -> {:ok, res} end)
 
       assert Enum.any?(results, &(&1.question.id == q1.id))
 
       # Test with other special characters
-      assert {:ok, {res_slash, _}} =
+      assert {:ok, {res_slash, _, _}} =
                Code.eval_string(
                  "ZiStudy.Questions.search_questions_advanced(\"H2O/water\", limit: 10)"
                )
@@ -2407,7 +2436,7 @@ defmodule ZiStudy.QuestionsTest do
       # This won't find anything, but it shouldn't crash
       assert length(res_slash) == 0
 
-      assert {:ok, {res_star, _}} =
+      assert {:ok, {res_star, _, _}} =
                Code.eval_string(
                  "ZiStudy.Questions.search_questions_advanced(\"H2O*\", limit: 10)"
                )
@@ -2417,20 +2446,21 @@ defmodule ZiStudy.QuestionsTest do
     end
 
     test "search_questions_advanced/2 with '*' query searches all", %{q1: q1, q2: q2} do
-      {results, _} = Questions.search_questions_advanced("*", limit: 10)
+      {results, _, total_count} = Questions.search_questions_advanced("*", limit: 10)
       assert length(results) >= 2
+      assert total_count >= 2
       assert Enum.any?(results, &(&1.question.id == q1.id))
       assert Enum.any?(results, &(&1.question.id == q2.id))
     end
 
     test "search_questions_advanced/2 handles prefix search sensitively", %{q3: q3} do
-      {results, _} = Questions.search_questions_advanced("prim", limit: 10)
+      {results, _, _} = Questions.search_questions_advanced("prim", limit: 10)
       assert Enum.any?(results, &(&1.question.id == q3.id))
     end
 
     test "search_questions_advanced/2 handles problematic special characters without FTS errors",
          _context do
-      # Test various special characters that previously caused FTS5 syntax errors
+      # Test various special characters that cause FTS5 syntax errors without special handling.
       special_chars_tests = [
         # asterisk - should trigger search all
         "*",
@@ -2474,10 +2504,8 @@ defmodule ZiStudy.QuestionsTest do
         ";"
       ]
 
-      # Each of these should not cause an Exqlite.Error with FTS5 syntax
       Enum.each(special_chars_tests, fn char ->
-        assert {results, _cursor} = Questions.search_questions_advanced(char, limit: 10)
-        # Results can be empty, but no exception should be raised
+        assert {results, _cursor, _total} = Questions.search_questions_advanced(char, limit: 10)
         assert is_list(results)
       end)
     end
@@ -2486,7 +2514,7 @@ defmodule ZiStudy.QuestionsTest do
       q3: q3
     } do
       # Test searching only in question_text scope - should find "primordial"
-      {results, _} =
+      {results, _, _} =
         Questions.search_questions_advanced("primordial",
           search_scope: [:question_text],
           limit: 10
@@ -2495,13 +2523,13 @@ defmodule ZiStudy.QuestionsTest do
       assert Enum.any?(results, &(&1.question.id == q3.id))
 
       # Test searching in non-existent scope for this question - should find nothing
-      {results, _} =
+      {results, _, _} =
         Questions.search_questions_advanced("primordial", search_scope: [:options], limit: 10)
 
       refute Enum.any?(results, &(&1.question.id == q3.id))
 
       # Test multiple scope search - should work without OR syntax errors
-      {results, _} =
+      {results, _, _} =
         Questions.search_questions_advanced("primordial",
           search_scope: [:question_text, :options],
           limit: 10
@@ -2635,10 +2663,13 @@ defmodule ZiStudy.QuestionsTest do
       assert length(chunk) == 3
     end
 
-    test "returns remaining questions when chunk size exceeds remaining", %{question_set: question_set} do
+    test "returns remaining questions when chunk size exceeds remaining", %{
+      question_set: question_set
+    } do
       chunk = Questions.get_question_set_questions_chunk(question_set.id, 8, 5)
 
-      assert length(chunk) == 2  # Only 2 questions left (8-9)
+      # Only 2 questions left (8-9)
+      assert length(chunk) == 2
     end
 
     test "returns empty list when offset exceeds total questions", %{question_set: question_set} do
@@ -2653,7 +2684,8 @@ defmodule ZiStudy.QuestionsTest do
 
       chunk = Questions.get_question_set_questions_chunk(question_set.id)
 
-      assert chunk == []  # Empty set, should return empty list
+      # Empty set, should return empty list
+      assert chunk == []
     end
   end
 
@@ -2678,7 +2710,8 @@ defmodule ZiStudy.QuestionsTest do
     test "returns minimal answer data without preloads", %{user: user, questions: [q1, q2, q3]} do
       minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, [q1, q2, q3])
 
-      assert length(minimal_answers) == 2  # Only q1 and q2 have answers
+      # Only q1 and q2 have answers
+      assert length(minimal_answers) == 2
 
       # Check that answers have the minimal required fields
       first_answer = List.first(minimal_answers)
@@ -2704,9 +2737,12 @@ defmodule ZiStudy.QuestionsTest do
     test "handles questions with different ID formats", %{user: user, questions: [q1, q2, _q3]} do
       # Test with Question structs, maps with :id, and raw integers
       mixed_questions = [
-        q1,                    # Question struct
-        %{id: q2.id},         # Map with :id
-        q1.id                 # Raw integer
+        # Question struct
+        q1,
+        # Map with :id
+        %{id: q2.id},
+        # Raw integer
+        q1.id
       ]
 
       minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, mixed_questions)
@@ -2733,7 +2769,8 @@ defmodule ZiStudy.QuestionsTest do
     test "handles invalid question data gracefully", %{user: user} do
       invalid_questions = [nil, %{}, %{wrong_field: 123}, "invalid"]
 
-      minimal_answers = Questions.get_user_answers_for_questions_minimal(user.id, invalid_questions)
+      minimal_answers =
+        Questions.get_user_answers_for_questions_minimal(user.id, invalid_questions)
 
       assert minimal_answers == []
     end
@@ -2742,7 +2779,8 @@ defmodule ZiStudy.QuestionsTest do
   describe "EMQ answer format integration" do
     test "EMQ answers work with array format from frontend" do
       user = user_fixture()
-      question = question_fixture(:emq)  # Creates EMQ with matches: [[0, 0], [1, 1], [2, 2]]
+      # Creates EMQ with matches: [[0, 0], [1, 1], [2, 2]]
+      question = question_fixture(:emq)
 
       # Test the format that frontend now sends (array of arrays)
       correct_answer = %{"matches" => [[0, 0], [1, 1], [2, 2]]}
@@ -2755,7 +2793,7 @@ defmodule ZiStudy.QuestionsTest do
       assert {:ok, false} = Questions.check_answer_correctness(question.id, incorrect_answer)
     end
 
-        test "EMQ upsert_answer works with correct format and is_correct evaluation" do
+    test "EMQ upsert_answer works with correct format and is_correct evaluation" do
       user = user_fixture()
       question = question_fixture(:emq)
 
@@ -2765,11 +2803,13 @@ defmodule ZiStudy.QuestionsTest do
       assert is_correct_true == true
 
       # Use QuestionHandlers which properly evaluates answers
-      {:ok, answer_dto, _meta} = QuestionHandlers.handle_answer_question(
-        to_string(question.id),
-        correct_answer,
-        user
-      )
+      {:ok, answer_dto, _meta} =
+        QuestionHandlers.handle_answer_question(
+          to_string(question.id),
+          correct_answer,
+          user
+        )
+
       assert answer_dto.is_correct == 1
 
       # Test incorrect answer
@@ -2777,11 +2817,13 @@ defmodule ZiStudy.QuestionsTest do
       {:ok, is_correct_false} = Questions.check_answer_correctness(question.id, incorrect_answer)
       assert is_correct_false == false
 
-      {:ok, answer_dto2, _meta} = QuestionHandlers.handle_answer_question(
-        to_string(question.id),
-        incorrect_answer,
-        user
-      )
+      {:ok, answer_dto2, _meta} =
+        QuestionHandlers.handle_answer_question(
+          to_string(question.id),
+          incorrect_answer,
+          user
+        )
+
       assert answer_dto2.is_correct == 0
     end
   end

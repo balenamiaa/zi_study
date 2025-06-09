@@ -13,6 +13,7 @@
         oninput = null,
         onkeydown = null,
         class: userClass = "",
+        children,
         ...restProps
     } = $props();
 
@@ -79,5 +80,9 @@
 
     {#if !required}
         <span class="badge badge-neutral badge-xs">Optional</span>
+    {/if}
+
+    {#if children}
+        {@render children()}
     {/if}
 </label>
