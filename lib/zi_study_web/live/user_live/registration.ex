@@ -22,7 +22,7 @@ defmodule ZiStudyWeb.UserLive.Registration do
 
         <.form for={@form} id="registration_form" phx-submit="save" phx-change="validate">
           <.svelte
-            name="AvatarUpload"
+            name="components/AvatarUpload"
             class="mb-4 mx-auto w-fit"
             props={
               %{

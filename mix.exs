@@ -4,7 +4,7 @@ defmodule ZiStudy.MixProject do
   def project do
     [
       app: :zi_study,
-      version: "0.3.0",
+      version: "0.3.1",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -36,6 +36,7 @@ defmodule ZiStudy.MixProject do
       {:pbkdf2_elixir, "~> 2.0"},
       {:phoenix, "~> 1.8.0-rc.0", override: true},
       {:phoenix_ecto, "~> 4.5"},
+      {:brotli, "~> 0.3.2"},
       {:ecto_sql, "~> 3.10"},
       {:ecto_sqlite3, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
@@ -51,7 +52,9 @@ defmodule ZiStudy.MixProject do
        app: false,
        compile: false,
        depth: 1},
-      {:swoosh, "~> 1.5"},
+      {:swoosh, "~> 1.19.1"},
+      {:finch, "~> 0.19.0"},
+      {:gen_smtp, "~> 1.3"},
       {:live_svelte, "~> 0.16.0"},
       {:httpoison, "~> 2.0"},
       {:telemetry_metrics, "~> 1.0"},

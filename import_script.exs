@@ -1,6 +1,6 @@
 alias ZiStudy.Questions
 
-json_string = File.read!("priv/static/questions/extensive_surgery_set_00.json")
+json_string = File.read!("questions_json/extensive_surgery_set_00.json")
 
 {:ok, tags} =
   Enum.reduce_while(

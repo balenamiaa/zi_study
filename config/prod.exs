@@ -18,4 +18,17 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+config :zi_study, ZiStudy.Mailer,
+  adapter: Swoosh.Adapters.SMTP,
+  relay: "smtp.gmail.com",
+  port: 587,
+  username: System.get_env("GMAIL_USERNAME"),
+  password: System.get_env("GMAIL_PASSWORD"),
+  ssl: false,
+  tls: :always,
+  auth: :always,
+  retries: 2,
+  no_mx_lookups: false,
+  tls_options: [verify: :verify_none]
+
 config :zi_study, ZiStudyWeb.Endpoint, force_ssl: [hsts: true]

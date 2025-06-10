@@ -9,18 +9,20 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
       <.svelte
         name="pages/ActiveLearningQuestionSet"
         socket={@socket}
-        props={%{
-          # Small metadata only
-          questionSetMeta: @question_set_meta,
-          # Initial questions for SSR (first 10)
-          initialQuestions: @initial_questions,
-          initialAnswers: @initial_answers,
-          # Streaming state
-          streamingState: @streaming_state,
-          # User data
-          currentUser: @current_user_dto,
-          userQuestionSets: @user_question_sets
-        }}
+        props={
+          %{
+            # Small metadata only
+            questionSetMeta: @question_set_meta,
+            # Initial questions for SSR (first 10)
+            initialQuestions: @initial_questions,
+            initialAnswers: @initial_answers,
+            # Streaming state
+            streamingState: @streaming_state,
+            # User data
+            currentUser: @current_user_dto,
+            userQuestionSets: @user_question_sets
+          }
+        }
       />
     </Layouts.active_learning>
     """
@@ -31,14 +33,17 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     question_set_id = String.to_integer(params["id"])
 
     # Load just metadata first
-    question_set_meta = QuestionHandlers.get_question_set_metadata(question_set_id, current_user.id)
+    question_set_meta =
+      QuestionHandlers.get_question_set_metadata(question_set_id, current_user.id)
 
     # Get initial chunk for SSR (first 10 questions)
-    {initial_chunk, streaming_state} = QuestionHandlers.get_initial_questions_chunk(
-      question_set_id,
-      current_user.id,
-      10 # Initial chunk size for SSR
-    )
+    {initial_chunk, streaming_state} =
+      QuestionHandlers.get_initial_questions_chunk(
+        question_set_id,
+        current_user.id,
+        # Initial chunk size for SSR
+        10
+      )
 
     {:ok,
      socket
@@ -51,42 +56,20 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
      |> assign(:user_question_sets, nil)}
   end
 
-  def handle_event("start_streaming", _params, socket) do
-    # Client requests to start streaming remaining questions
-    current_user = socket.assigns.current_scope.user
-    question_set_id = socket.assigns.question_set_id
-    streaming_state = socket.assigns.streaming_state
-
-    if streaming_state.has_more && !streaming_state.is_streaming do
-      # Start streaming in background
-      send(self(), :stream_next_chunk)
-
-      updated_streaming_state = Map.put(streaming_state, :is_streaming, true)
-
-      {:noreply, assign(socket, :streaming_state, updated_streaming_state)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("request_more_questions", _params, socket) do
-    # Manual request for more questions (fallback for intersection observer)
-    send(self(), :stream_next_chunk)
-    {:noreply, socket}
-  end
-
   def handle_info(:stream_next_chunk, socket) do
     current_user = socket.assigns.current_scope.user
     question_set_id = socket.assigns.question_set_id
     streaming_state = socket.assigns.streaming_state
 
     if streaming_state.has_more do
-      {questions_chunk, updated_streaming_state} = QuestionHandlers.get_questions_chunk(
-        question_set_id,
-        current_user.id,
-        streaming_state.loaded_count,
-        30 # Chunk size for streaming
-      )
+      {questions_chunk, updated_streaming_state} =
+        QuestionHandlers.get_questions_chunk(
+          question_set_id,
+          current_user.id,
+          streaming_state.loaded_count,
+          # Chunk size for streaming
+          30
+        )
 
       # Send chunk via event (not props!)
       {:noreply,
@@ -103,13 +86,30 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-  # Event handlers for question interactions (answers, etc.)
+  def handle_event("start_streaming", _params, socket) do
+    streaming_state = socket.assigns.streaming_state
+
+    if streaming_state.has_more && !streaming_state.is_streaming do
+      send(self(), :stream_next_chunk)
+
+      updated_streaming_state = Map.put(streaming_state, :is_streaming, true)
+
+      {:noreply, assign(socket, :streaming_state, updated_streaming_state)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("request_more_questions", _params, socket) do
+    send(self(), :stream_next_chunk)
+    {:noreply, socket}
+  end
+
   def handle_event("answer_question", %{"question_id" => question_id, "answer" => answer}, socket) do
     current_user = socket.assigns.current_scope.user
 
     case QuestionHandlers.handle_answer_question(question_id, answer, current_user) do
       {:ok, answer_dto, event_data} ->
-        # Send single answer update via event
         {:noreply,
          socket
          |> push_event("answer_updated", %{
@@ -159,8 +159,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-
-
   def handle_event("update_question_set", %{"field" => field, "value" => value}, socket) do
     current_user = socket.assigns.current_scope.user
     question_set_id = socket.assigns.question_set_id
@@ -169,6 +167,7 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
       {:ok, _updated_set} ->
         # Update metadata via event
         field_atom = String.to_atom(field)
+
         {:noreply,
          socket
          |> update(:question_set_meta, &Map.put(&1, field_atom, value))
@@ -182,7 +181,6 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-  # Other event handlers remain similar...
   def handle_event("clear_user_question_sets", _params, socket) do
     {:noreply, assign(socket, :user_question_sets, nil)}
   end
@@ -246,14 +244,11 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
-  # Helper functions
   defp maybe_schedule_next_chunk(socket, streaming_state) do
     if streaming_state.has_more do
-      # Stream next chunk after a small delay to avoid overwhelming
-      Process.send_after(self(), :stream_next_chunk, 100)
+      Process.send_after(self(), :stream_next_chunk, 10)
     end
+
     socket
   end
-
-
 end

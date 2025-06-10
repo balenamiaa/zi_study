@@ -71,8 +71,10 @@ if config_env() == :prod do
     https: [
       port: 443,
       cipher_suite: :strong,
-      keyfile: System.get_env("ZI_STUDY_SSL_KEY_PATH"),
-      certfile: System.get_env("ZI_STUDY_SSL_CERT_PATH")
+      keyfile:
+        System.get_env("ZI_STUDY_SSL_KEY_PATH") || raise("ZI_STUDY_SSL_KEY_PATH is not set"),
+      certfile:
+        System.get_env("ZI_STUDY_SSL_CERT_PATH") || raise("ZI_STUDY_SSL_CERT_PATH is not set")
     ]
 
   #

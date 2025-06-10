@@ -26,6 +26,10 @@ config :logger, level: :warning
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 
+config :phoenix,
+  # TODO: ZiStudy.BrotliCompressor after it's implemented
+  static_compressors: [Phoenix.Digester.Gzip]
+
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
