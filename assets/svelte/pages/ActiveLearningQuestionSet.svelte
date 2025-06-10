@@ -23,67 +23,65 @@
         userQuestionSets,
     } = $props();
 
-    // Core state
     let allQuestions = $state([...initialQuestions]);
     let allAnswers = $state([...initialAnswers]);
     let currentStreamingState = $state({ ...streamingState });
-
-    // UI state
-    let searchQuery = $state("");
-    let showFilters = $state(false);
-    let difficultyRange = $state([1, 5]);
-    let answerStatus = $state("all");
-    let currentQuestionIndex = $state(0);
-    let showTagsModal = $state(false);
     let isEditingHeader = $state(false);
     let editingValues = $state({
         title: "",
         description: "",
         is_private: false,
     });
-    let isDraggingSlider = $state(false);
 
+    let searchQuery = $state("");
+    let showFilters = $state(false);
+    let difficultyRange = $state([1, 5]);
+    let answerStatus = $state("all");
+    let showTagsModal = $state(false);
+
+    let currentQuestionIndex = $state(0);
+    let isDraggingSlider = $state(false);
     let questionsContainer = $state();
     let virtualList = $state();
-    let loadingTrigger = $state();
     let questionObserver = $state();
-    let intersectionObserver = $state();
+    let loadingObserver = $state();
 
-    let answerLookup = $derived(
+    const answerLookup = $derived(
         new Map(allAnswers.map((answer) => [answer.question_id, answer])),
     );
 
-    let questionSet = $derived({
+    const questionSet = $derived({
         ...questionSetMeta,
         questions: allQuestions,
         answers: allAnswers,
     });
 
-    let filteredQuestions = $derived.by(() => {
-        if (!allQuestions || allQuestions.length === 0) return [];
+    const filteredQuestions = $derived.by(() => {
+        if (!allQuestions) return [];
 
         const searchLower = searchQuery.toLowerCase();
 
-        return allQuestions.filter((question) => {
+        return allQuestions.filter((q) => {
             const matchesSearch =
                 searchQuery === "" ||
-                question.data.question_text
-                    ?.toLowerCase()
-                    .includes(searchLower);
+                q.data.question_text?.toLowerCase().includes(searchLower);
 
-            const difficulty = parseInt(question.data.difficulty) || 3;
+            const difficulty = parseInt(q.data.difficulty) || 3;
             const matchesDifficulty =
                 difficulty >= difficultyRange[0] &&
                 difficulty <= difficultyRange[1];
 
+            const hasAnswer = answerLookup.has(q.id);
             const matchesAnswerStatus =
-                answerStatus === "all" || answerStatus === "unanswered";
+                answerStatus === "all" ||
+                (answerStatus === "answered" && hasAnswer) ||
+                (answerStatus === "unanswered" && !hasAnswer);
 
             return matchesSearch && matchesDifficulty && matchesAnswerStatus;
         });
     });
 
-    let virtualListItems = $derived.by(() => {
+    const virtualListItems = $derived.by(() => {
         const items = [...filteredQuestions];
         if (currentStreamingState?.has_more) {
             items.push({ isLoadingTrigger: true });
@@ -91,209 +89,12 @@
         return items;
     });
 
-    function setupQuestionObserver() {
-        if (!questionsContainer || questionObserver) return;
-
-        questionObserver = new IntersectionObserver(
-            (entries) => {
-                if (isDraggingSlider) return;
-
-                let maxRatio = 0;
-                let mostVisibleIndex = currentQuestionIndex;
-
-                entries.forEach((entry) => {
-                    if (
-                        entry.isIntersecting &&
-                        entry.intersectionRatio > maxRatio
-                    ) {
-                        const index = parseInt(entry.target.dataset.index);
-                        if (!isNaN(index)) {
-                            maxRatio = entry.intersectionRatio;
-                            mostVisibleIndex = index;
-                        }
-                    }
-                });
-
-                if (
-                    mostVisibleIndex !== currentQuestionIndex &&
-                    maxRatio > 0.3
-                ) {
-                    currentQuestionIndex = mostVisibleIndex;
-                }
-            },
-            {
-                root: questionsContainer,
-                rootMargin: "-20% 0px -20% 0px",
-                threshold: [0, 0.1, 0.3, 0.5, 0.7, 0.9],
-            },
-        );
-    }
-
-    function observeQuestion(element, index) {
-        if (!element) return { destroy: () => {} };
-
-        element.dataset.index = index.toString();
-
-        if (questionObserver) {
-            questionObserver.observe(element);
-        }
-
-        return {
-            destroy() {
-                if (questionObserver && element) {
-                    questionObserver.unobserve(element);
-                }
-            },
-        };
-    }
-
-    $effect(() => {
-        if (questionsContainer && !questionObserver) {
-            setupQuestionObserver();
-        }
-
-        return () => {
-            if (questionObserver) {
-                questionObserver.disconnect();
-                questionObserver = null;
-            }
-        };
-    });
-
-    $effect(() => {
-        filteredQuestions; // Track
-
-        if (questionObserver && questionsContainer) {
-            const questionElements =
-                questionsContainer.querySelectorAll("[data-index]");
-            questionElements.forEach((element) => {
-                questionObserver.observe(element);
-            });
-        }
-    });
-
-    $effect(() => {
-        if (loadingTrigger && !intersectionObserver && questionsContainer) {
-            intersectionObserver = new IntersectionObserver(
-                (entries) => {
-                    entries.forEach((entry) => {
-                        if (
-                            entry.isIntersecting &&
-                            currentStreamingState?.has_more &&
-                            !currentStreamingState?.is_streaming
-                        ) {
-                            live.pushEvent("request_more_questions", {});
-                        }
-                    });
-                },
-                {
-                    root: questionsContainer,
-                    rootMargin: "200px",
-                    threshold: 0.1,
-                },
-            );
-            intersectionObserver.observe(loadingTrigger);
-        }
-
-        return () => {
-            if (intersectionObserver) {
-                intersectionObserver.disconnect();
-                intersectionObserver = null;
-            }
-        };
-    });
-
-    $effect(() => {
-        if (!live) return;
-
-        if (
-            currentStreamingState.has_more &&
-            !currentStreamingState.is_streaming
-        ) {
-            live.pushEvent("start_streaming", {});
-        }
-
-        const handleQuestionsChunk = live.handleEvent(
-            "questions_chunk_received",
-            (event) => {
-                allQuestions = [...allQuestions, ...event.questions];
-                allAnswers = [...allAnswers, ...event.answers];
-                currentStreamingState = event.streaming_state;
-            },
-        );
-
-        const handleAnswerUpdated = live.handleEvent(
-            "answer_updated",
-            (event) => {
-                const existingIndex = allAnswers.findIndex(
-                    (a) => a.question_id === event.answer.question_id,
-                );
-                if (existingIndex >= 0) {
-                    allAnswers[existingIndex] = event.answer;
-                } else {
-                    allAnswers = [...allAnswers, event.answer];
-                }
-                allAnswers = [...allAnswers];
-            },
-        );
-
-        const handleAnswerReset = live.handleEvent("answer_reset", (event) => {
-            allAnswers = allAnswers.filter(
-                (a) => a.question_id !== event.question_id,
-            );
-        });
-
-        const handleMetaUpdated = live.handleEvent(
-            "question_set_meta_updated",
-            (event) => {
-                questionSetMeta[event.field] = event.value;
-            },
-        );
-
-        return () => {
-            live.removeHandleEvent(handleQuestionsChunk);
-            live.removeHandleEvent(handleAnswerUpdated);
-            live.removeHandleEvent(handleAnswerReset);
-            live.removeHandleEvent(handleMetaUpdated);
-        };
-    });
-
-    // UI event handlers
-    function loadMoreQuestions() {
-        if (
-            live &&
-            currentStreamingState?.has_more &&
-            !currentStreamingState?.is_streaming
-        ) {
-            live.pushEvent("request_more_questions", {});
-        }
-    }
-
-    function handleSliderChange(index) {
-        isDraggingSlider = true;
-        currentQuestionIndex = index;
-        scrollToQuestion(index);
-        setTimeout(() => {
-            isDraggingSlider = false;
-        }, 500);
-    }
-
-    function scrollToQuestion(index) {
-        if (virtualList && filteredQuestions[index]) {
-            virtualList.scrollToIndex(index, { behavior: "smooth" });
-        }
-    }
-
     function handleFieldUpdate(field, value) {
         live.pushEvent("update_question_set", { field, value });
     }
 
     function startHeaderEdit() {
-        if (
-            !questionSet?.owner ||
-            questionSet.owner.email !== currentUser?.email
-        )
-            return;
+        if (questionSet?.owner?.email !== currentUser?.email) return;
         editingValues = {
             title: questionSet.title || "",
             description: questionSet.description || "",
@@ -318,13 +119,145 @@
         }
         isEditingHeader = false;
     }
+
+    function handleSliderChange(index) {
+        isDraggingSlider = true;
+        currentQuestionIndex = index;
+        if (virtualList) {
+            virtualList.scrollToIndex(index, { behavior: "smooth" });
+        }
+        setTimeout(() => {
+            isDraggingSlider = false;
+        }, 500);
+    }
+
+    function observeQuestionElement(element, index) {
+        element.dataset.index = String(index);
+        questionObserver?.observe(element);
+        return {
+            destroy() {
+                questionObserver?.unobserve(element);
+            },
+        };
+    }
+
+    function observeLoadingTrigger(element) {
+        loadingObserver?.observe(element);
+        return {
+            destroy() {
+                loadingObserver?.unobserve(element);
+            },
+        };
+    }
+
+    $effect(() => {
+        if (!live) return;
+
+        const handles = [
+            live.handleEvent("questions_chunk_received", (event) => {
+                allQuestions = [...allQuestions, ...event.questions];
+                allAnswers = [...allAnswers, ...event.answers];
+                currentStreamingState = event.streaming_state;
+            }),
+            live.handleEvent("answer_updated", (event) => {
+                const index = allAnswers.findIndex(
+                    (a) => a.question_id === event.answer.question_id,
+                );
+                if (index > -1) {
+                    allAnswers[index] = event.answer;
+                } else {
+                    allAnswers = [...allAnswers, event.answer];
+                }
+            }),
+            live.handleEvent("answer_reset", (event) => {
+                allAnswers = allAnswers.filter(
+                    (a) => a.question_id !== event.question_id,
+                );
+            }),
+            live.handleEvent("question_set_meta_updated", (event) => {
+                questionSetMeta[event.field] = event.value;
+            }),
+        ];
+
+        return () => handles.forEach((h) => live.removeHandleEvent(h));
+    });
+
+    let hasStartedStreaming = $state(false);
+    $effect(() => {
+        if (
+            live &&
+            !hasStartedStreaming &&
+            currentStreamingState.has_more &&
+            !currentStreamingState.is_streaming
+        ) {
+            hasStartedStreaming = true;
+            live.pushEvent("start_streaming", {});
+        }
+    });
+
+    $effect(() => {
+        if (!questionsContainer) return;
+
+        questionObserver = new IntersectionObserver(
+            (entries) => {
+                if (isDraggingSlider) return;
+
+                let mostVisibleEntry = null;
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        if (
+                            !mostVisibleEntry ||
+                            entry.intersectionRatio >
+                                mostVisibleEntry.intersectionRatio
+                        ) {
+                            mostVisibleEntry = entry;
+                        }
+                    }
+                }
+
+                if (mostVisibleEntry) {
+                    const index = parseInt(
+                        mostVisibleEntry.target.dataset.index,
+                    );
+                    if (
+                        index !== currentQuestionIndex &&
+                        mostVisibleEntry.intersectionRatio > 0.3
+                    ) {
+                        currentQuestionIndex = index;
+                    }
+                }
+            },
+            {
+                root: questionsContainer,
+                rootMargin: "-20% 0px -20% 0px",
+                threshold: [0, 0.1, 0.3, 0.5, 0.7, 0.9],
+            },
+        );
+
+        loadingObserver = new IntersectionObserver(
+            (entries) => {
+                if (
+                    entries[0]?.isIntersecting &&
+                    currentStreamingState.has_more &&
+                    !currentStreamingState.is_streaming
+                ) {
+                    live.pushEvent("request_more_questions", {});
+                }
+            },
+            { root: questionsContainer, rootMargin: "200px" },
+        );
+
+        return () => {
+            questionObserver?.disconnect();
+            loadingObserver?.disconnect();
+        };
+    });
 </script>
 
 <div class="min-h-screen bg-base-100 flex flex-col gap-4">
     <div class="bg-base-200 border-b border-base-300">
         <div class="max-w-8xl mx-auto p-2 md:p-4">
             {#if isEditingHeader}
-                <!-- Edit Mode -->
                 <div
                     class="bg-base-100 rounded-lg p-4 border border-base-300 space-y-4"
                 >
@@ -351,9 +284,7 @@
                             </button>
                         </div>
                     </div>
-
                     <div class="space-y-4">
-                        <!-- Title -->
                         <div>
                             <label
                                 for="title"
@@ -361,14 +292,13 @@
                                 >Title</label
                             >
                             <input
+                                id="title"
                                 type="text"
                                 bind:value={editingValues.title}
                                 placeholder="Question Set Title"
                                 class="input input-bordered w-full text-2xl font-bold"
                             />
                         </div>
-
-                        <!-- Description -->
                         <div>
                             <label
                                 for="description"
@@ -376,14 +306,13 @@
                                 >Description</label
                             >
                             <textarea
+                                id="description"
                                 bind:value={editingValues.description}
                                 placeholder="Add a description..."
                                 class="textarea textarea-bordered w-full"
                                 rows="3"
                             ></textarea>
                         </div>
-
-                        <!-- Privacy Toggle -->
                         <div>
                             <label
                                 for="is_private"
@@ -395,6 +324,7 @@
                                     class="cursor-pointer label justify-start gap-3"
                                 >
                                     <input
+                                        id="is_private"
                                         type="checkbox"
                                         bind:checked={editingValues.is_private}
                                         class="toggle toggle-primary"
@@ -410,9 +340,7 @@
                     </div>
                 </div>
             {:else}
-                <!-- Display Mode -->
                 <div class="space-y-4 relative">
-                    <!-- Edit button positioned absolutely in top right -->
                     {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
                         <button
                             class="btn btn-outline btn-xs gap-1 absolute top-0 right-0 z-10"
@@ -431,8 +359,6 @@
                                 {questionSet.title || "Untitled Question Set"}
                             </h1>
                         </div>
-
-                        <!-- Owner and metadata info -->
                         <div
                             class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3"
                         >
@@ -456,7 +382,6 @@
                                     </span>
                                 </div>
                             {/if}
-
                             <div class="flex items-center gap-2">
                                 <div
                                     class="badge badge-sm {questionSet.is_private
@@ -469,7 +394,6 @@
                                 </div>
                             </div>
                         </div>
-
                         {#if questionSet.description}
                             <div
                                 class="text-base-content/70 text-sm sm:text-base break-words"
@@ -482,8 +406,6 @@
                             </div>
                         {/if}
                     </div>
-
-                    <!-- Tags section -->
                     <div class="flex items-center gap-2 flex-wrap">
                         {#if questionSet?.tags && questionSet.tags.length > 0}
                             {#each questionSet.tags as tag}
@@ -496,7 +418,6 @@
                                 >No tags</span
                             >
                         {/if}
-
                         {#if questionSet?.owner && questionSet.owner.email === currentUser?.email}
                             <button
                                 class="btn btn-ghost btn-circle btn-xs hover:bg-primary hover:text-primary-content transition-colors"
@@ -517,7 +438,6 @@
             <div
                 class="flex flex-col lg:flex-row gap-4 items-start lg:items-center"
             >
-                <!-- Enhanced Search Input -->
                 <div class="flex-1 w-full lg:max-w-lg">
                     <TextInput
                         bind:value={searchQuery}
@@ -529,8 +449,6 @@
                         type="search"
                     />
                 </div>
-
-                <!-- Filters and Results Row -->
                 <div
                     class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto"
                 >
@@ -544,14 +462,13 @@
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
-                        >
-                            <path
+                            ><path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
                                 d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.414A1 1 0 013 6.707V4z"
-                            />
-                        </svg>
+                            /></svg
+                        >
                         Filters
                         {#if showFilters}
                             <svg
@@ -560,14 +477,13 @@
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
-                            >
-                                <path
+                                ><path
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
                                     stroke-width="2"
                                     d="M5 15l7-7 7 7"
-                                />
-                            </svg>
+                                /></svg
+                            >
                         {:else}
                             <svg
                                 class="w-4 h-4"
@@ -575,20 +491,18 @@
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
-                            >
-                                <path
+                                ><path
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
                                     stroke-width="2"
                                     d="M19 9l-7 7-7-7"
-                                />
-                            </svg>
+                                /></svg
+                            >
                         {/if}
                     </button>
 
                     <div class="text-sm text-base-content/70 whitespace-nowrap">
                         {filteredQuestions.length} of {currentStreamingState?.total_count ||
-                            questionSet?.questions?.length ||
                             0} questions
                         {#if currentStreamingState?.loaded_count && currentStreamingState.loaded_count < currentStreamingState.total_count}
                             <span class="text-primary"
@@ -609,7 +523,6 @@
         </div>
     </div>
 
-    <!-- Questions Overview -->
     {#if questionSet}
         <QuestionsOverview
             {questionSet}
@@ -636,14 +549,13 @@
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
-                        >
-                            <path
+                            ><path
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
                                 d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
+                            /></svg
+                        >
                     </div>
                     <h3 class="text-xl font-semibold text-base-content mb-2">
                         No questions found
@@ -661,8 +573,7 @@
                 >
                     {#snippet children(item, index)}
                         {#if item.isLoadingTrigger}
-                            <!-- Loading trigger element -->
-                            <div bind:this={loadingTrigger} class="w-full py-8">
+                            <div class="w-full py-8" use:observeLoadingTrigger>
                                 {#if currentStreamingState?.is_streaming}
                                     <div class="text-center">
                                         <div
@@ -676,21 +587,24 @@
                                     <div class="text-center">
                                         <button
                                             class="btn btn-outline btn-lg gap-2"
-                                            onclick={loadMoreQuestions}
+                                            onclick={() =>
+                                                live.pushEvent(
+                                                    "request_more_questions",
+                                                    {},
+                                                )}
                                         >
                                             <svg
                                                 class="w-5 h-5"
                                                 fill="none"
                                                 stroke="currentColor"
                                                 viewBox="0 0 24 24"
-                                            >
-                                                <path
+                                                ><path
                                                     stroke-linecap="round"
                                                     stroke-linejoin="round"
                                                     stroke-width="2"
                                                     d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                                                ></path>
-                                            </svg>
+                                                ></path></svg
+                                            >
                                             Load More Questions
                                         </button>
                                     </div>
@@ -699,7 +613,7 @@
                         {:else}
                             {@const question = item}
                             {@const userAnswer = answerLookup.get(question.id)}
-                            <div class="p-3" use:observeQuestion={index}>
+                            <div class="p-3" use:observeQuestionElement={index}>
                                 <QuestionRenderer
                                     {question}
                                     questionNumber={index + 1}

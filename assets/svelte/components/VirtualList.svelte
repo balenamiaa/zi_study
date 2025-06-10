@@ -16,6 +16,7 @@
     let itemHeights = $state(new Map());
     let totalHeight = $state(0);
     let itemOffsets = $state([]);
+    let isSSR = $state(typeof window === "undefined");
 
     function calculateOffsets() {
         const offsets = [0];
@@ -36,8 +37,13 @@
     });
 
     let visibleRange = $derived.by(() => {
-        if (!mounted || containerHeight === 0 || items.length === 0) {
-            return { start: 0, end: Math.min(10, items.length) };
+        if (items.length === 0) {
+            return { start: 0, end: 0 };
+        }
+
+        // During SSR or before mounting, show all items to prevent flicker
+        if (isSSR || !mounted || containerHeight === 0) {
+            return { start: 0, end: items.length };
         }
 
         let start = 0;
@@ -123,6 +129,12 @@
     }
 
     $effect(() => {
+        if (typeof window !== "undefined") {
+            isSSR = false;
+        }
+    });
+
+    $effect(() => {
         if (!scrollContainer) return;
 
         mounted = true;
@@ -143,27 +155,45 @@
     class="virtual-list-container {className}"
     style="height: {height}; overflow-y: auto; -webkit-overflow-scrolling: touch;"
 >
-    <div
-        class="virtual-list-inner"
-        style="height: {totalHeight}px; position: relative;"
-    >
-        {#each visibleItems as { item, index, top } (index)}
-            <div
-                class="virtual-list-item"
-                style="position: absolute; top: {top}px; width: 100%; left: 0;"
-                data-index={index}
-                use:measureItem={index}
-            >
-                {#if children}
-                    {@render children(item, index)}
-                {:else}
-                    <div class="p-4 border-b">
-                        Item {index}: {JSON.stringify(item)}
-                    </div>
-                {/if}
-            </div>
-        {/each}
-    </div>
+    {#if isSSR || !mounted}
+        <!-- SSR/Initial render: Simple layout to prevent flicker -->
+        <div class="virtual-list-simple">
+            {#each items as item, index (index)}
+                <div class="virtual-list-item-simple" data-index={index}>
+                    {#if children}
+                        {@render children(item, index)}
+                    {:else}
+                        <div class="p-4 border-b">
+                            Item {index}: {JSON.stringify(item)}
+                        </div>
+                    {/if}
+                </div>
+            {/each}
+        </div>
+    {:else}
+        <!-- Client-side virtualized rendering -->
+        <div
+            class="virtual-list-inner"
+            style="height: {totalHeight}px; position: relative;"
+        >
+            {#each visibleItems as { item, index, top } (index)}
+                <div
+                    class="virtual-list-item"
+                    style="position: absolute; top: {top}px; width: 100%; left: 0;"
+                    data-index={index}
+                    use:measureItem={index}
+                >
+                    {#if children}
+                        {@render children(item, index)}
+                    {:else}
+                        <div class="p-4 border-b">
+                            Item {index}: {JSON.stringify(item)}
+                        </div>
+                    {/if}
+                </div>
+            {/each}
+        </div>
+    {/if}
 </div>
 
 <style>
@@ -171,6 +201,7 @@
         position: relative;
         -webkit-overflow-scrolling: touch;
         will-change: scroll-position;
+        transition: opacity 0.1s ease-in-out;
     }
 
     .virtual-list-inner {
@@ -184,5 +215,15 @@
         left: 0;
         box-sizing: border-box;
         contain: layout style;
+    }
+
+    .virtual-list-simple {
+        position: relative;
+    }
+
+    .virtual-list-item-simple {
+        position: relative;
+        width: 100%;
+        box-sizing: border-box;
     }
 </style>

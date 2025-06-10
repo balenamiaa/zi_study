@@ -297,7 +297,7 @@
                                     </h4>
                                     <div class="flex gap-1">
                                         <div
-                                            class="badge badge-xs {questionSet.is_private
+                                            class="badge badge-xs shrink-0 {questionSet.is_private
                                                 ? 'badge-secondary'
                                                 : 'badge-primary'}"
                                         >
@@ -307,21 +307,21 @@
                                         </div>
                                         {#if !questionSet.is_owned}
                                             <div
-                                                class="badge badge-xs badge-outline"
+                                                class="badge badge-xs badge-outline shrink-0"
                                             >
                                                 Read-only
                                             </div>
                                         {/if}
                                         {#if wasInitiallySelected}
                                             <div
-                                                class="badge badge-xs badge-info"
+                                                class="badge badge-xs badge-info shrink-0"
                                             >
                                                 Contains Question
                                             </div>
                                         {/if}
                                         {#if isChanged && canSelect}
                                             <div
-                                                class="badge badge-xs {isSelected
+                                                class="badge badge-xs shrink-0 {isSelected
                                                     ? 'badge-success'
                                                     : 'badge-warning'}"
                                             >

@@ -296,7 +296,7 @@
                                         </div>
                                         {#if !canModify}
                                             <div
-                                                class="badge badge-xs badge-outline"
+                                                class="badge badge-xs badge-outline shrink-0"
                                             >
                                                 Read-only
                                             </div>
