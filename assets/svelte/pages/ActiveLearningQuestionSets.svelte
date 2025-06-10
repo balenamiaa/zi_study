@@ -148,7 +148,7 @@
 </script>
 
 <div class="min-h-screen bg-base-100 p-4 md:p-6 lg:p-8">
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-8xl mx-auto">
         <!-- Header Section -->
         <div class="mb-8 relative">
             <!-- Action buttons positioned absolutely on mobile -->

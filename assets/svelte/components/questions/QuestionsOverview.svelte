@@ -66,7 +66,7 @@
 </script>
 
 <div class={twMerge("bg-base-200 border-b border-base-300", userClass)}>
-    <div class="max-w-7xl mx-auto p-4 md:p-6">
+    <div class="max-w-8xl mx-auto p-4 md:p-6">
         <div class="space-y-6">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="bg-base-100 rounded-lg p-4 text-center">
