@@ -244,9 +244,91 @@ defmodule ZiStudyWeb.ActiveLearningLive.QuestionSet do
     end
   end
 
+  def handle_event("quick_create_question_set", %{"title" => title}, socket) do
+    current_user = socket.assigns.current_scope.user
+
+    case QuestionHandlers.handle_quick_create_question_set(title, current_user) do
+      {:ok, _question_set} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Question set created successfully")
+         |> push_event("set_created", %{})}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("load_all_tags", %{"search_query" => search_query}, socket) do
+    tags = QuestionHandlers.handle_load_tags(search_query)
+
+    {:noreply,
+     socket
+     |> push_event("tags_loaded", %{tags: tags})}
+  end
+
+  def handle_event("create_tag", %{"name" => name}, socket) do
+    case QuestionHandlers.handle_create_tag(name) do
+      {:ok, tag} ->
+        {:noreply,
+         socket
+         |> push_event("tag_created", %{tag: tag})}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("add_tags_to_question_set", %{"question_set_id" => question_set_id, "tag_ids" => tag_ids}, socket) do
+    current_user = socket.assigns.current_scope.user
+
+    case QuestionHandlers.handle_add_tags_to_question_set(question_set_id, tag_ids, current_user) do
+      {:ok, updated_set} ->
+        # Update the question set meta with new tags
+        updated_meta = Map.put(socket.assigns.question_set_meta, :tags, Enum.map(updated_set.tags, &QuestionHandlers.get_tag_dto/1))
+
+        {:noreply,
+         socket
+         |> assign(:question_set_meta, updated_meta)
+         |> push_event("question_set_meta_updated", %{
+           field: "tags",
+           value: updated_meta.tags
+         })}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("remove_tags_from_question_set", %{"question_set_id" => question_set_id, "tag_ids" => tag_ids}, socket) do
+    current_user = socket.assigns.current_scope.user
+
+    case QuestionHandlers.handle_remove_tags_from_question_set(question_set_id, tag_ids, current_user) do
+      {:ok, updated_set} ->
+        # Update the question set meta with new tags
+        updated_meta = Map.put(socket.assigns.question_set_meta, :tags, Enum.map(updated_set.tags, &QuestionHandlers.get_tag_dto/1))
+
+        {:noreply,
+         socket
+         |> assign(:question_set_meta, updated_meta)
+         |> push_event("question_set_meta_updated", %{
+           field: "tags",
+           value: updated_meta.tags
+         })}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("clear_tags", _params, socket) do
+    # Just a cleanup event from the modal, no action needed
+    {:noreply, socket}
+  end
+
   defp maybe_schedule_next_chunk(socket, streaming_state) do
     if streaming_state.has_more do
-      Process.send_after(self(), :stream_next_chunk, 10)
+      Process.send_after(self(), :stream_next_chunk, 100)
     end
 
     socket

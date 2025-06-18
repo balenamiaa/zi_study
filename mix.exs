@@ -4,7 +4,7 @@ defmodule ZiStudy.MixProject do
   def project do
     [
       app: :zi_study,
-      version: "0.3.1",
+      version: "0.3.2",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,

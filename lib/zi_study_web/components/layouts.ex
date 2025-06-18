@@ -202,7 +202,7 @@ defmodule ZiStudyWeb.Layouts do
     <!-- Main content area -->
       <div class="min-h-screen">
         <main class="p-4 sm:px-6 lg:px-8">
-          <div class="mx-auto max-w-6xl space-y-6">
+          <div class="mx-auto max-w-8xl space-y-6">
             {render_slot(@inner_block)}
           </div>
         </main>
